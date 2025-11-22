@@ -11,6 +11,7 @@ import time
 import json
 import os
 from .app_scanner import ApplicationScanner
+from .eye_defender import EyeDefender
 
 
 class NotificationGUI:
@@ -18,16 +19,21 @@ class NotificationGUI:
     GUI for displaying filtered notifications and flow state information
     """
     
-    def __init__(self, flow_amplifier, flow_monitor):
+    def __init__(self, flow_amplifier, flow_monitor, auto_start_eye_defender=False):
         """
         Initialize the GUI
         
         Args:
             flow_amplifier: FlowAmplifier instance
             flow_monitor: FlowMonitorSystem instance
+            auto_start_eye_defender: Whether to auto-start Eye Defender
         """
         self.flow_amplifier = flow_amplifier
         self.flow_monitor = flow_monitor
+        self.auto_start_eye_defender = auto_start_eye_defender
+        
+        # Initialize Eye Defender (will be configured from GUI)
+        self.eye_defender = EyeDefender(interval_minutes=0.2, blur_duration_seconds=20)
         
         self.root = tk.Tk()
         self.root.title("Prism - Flow State Monitor")
@@ -41,6 +47,13 @@ class NotificationGUI:
         
         # Register callbacks
         self.flow_amplifier.add_notification_callback(self.on_notification)
+        
+        # Set blur callback for Eye Defender (must run on main thread)
+        self.eye_defender.set_blur_callback(lambda: self.root.after(0, self.show_eye_break_overlay))
+        
+        # Auto-start Eye Defender if requested
+        if self.auto_start_eye_defender:
+            self.root.after(1000, self.start_eye_defender)
         
         # Start update loop
         self.running = True
@@ -160,6 +173,11 @@ class NotificationGUI:
         apps_tab = ttk.Frame(notebook)
         notebook.add(apps_tab, text="App Settings")
         self.create_app_management_tab(apps_tab)
+        
+        # Tab 5: Eye Defender
+        eye_tab = ttk.Frame(notebook)
+        notebook.add(eye_tab, text="👁️ Eye Defender")
+        self.create_eye_defender_tab(eye_tab)
         
         # === Control Buttons ===
         button_frame = ttk.Frame(main_frame)
@@ -348,6 +366,285 @@ class NotificationGUI:
         
         # Load current apps
         self.load_app_lists()
+    
+    def create_eye_defender_tab(self, parent):
+        """Create the Eye Defender (20-20-20 rule) interface"""
+        # Main container
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(2, weight=1)
+        
+        # === Eye Defender Header ===
+        header_frame = ttk.LabelFrame(parent, text="👁️ Eye Defender - 20-20-20 Rule", padding="15")
+        header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
+        
+        desc_text = (
+            "Protect your eyes from digital strain!\n\n"
+            "Every X minutes, you'll get a reminder to look away from your screen\n"
+            "for Y seconds at something 20 feet away. This reduces eye fatigue and strain."
+        )
+        ttk.Label(header_frame, text=desc_text, foreground='#666', wraplength=800).grid(row=0, column=0, sticky=tk.W)
+        
+        # === Settings Frame ===
+        settings_frame = ttk.LabelFrame(parent, text="⚙️ Timer Settings", padding="15")
+        settings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
+        settings_frame.columnconfigure(1, weight=1)
+        
+        # Interval setting
+        ttk.Label(settings_frame, text="Reminder Interval:", font=('Arial', 11)).grid(row=0, column=0, sticky=tk.W, pady=10)
+        
+        interval_frame = ttk.Frame(settings_frame)
+        interval_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
+        
+        self.interval_var = tk.DoubleVar(value=20.0)
+        # Range: 0.5 to 30 minutes (30 seconds to 30 minutes)
+        self.interval_scale = ttk.Scale(interval_frame, from_=0.5, to=30, orient=tk.HORIZONTAL,
+                                       variable=self.interval_var, command=self.update_eye_defender_interval)
+        self.interval_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        
+        self.interval_label = ttk.Label(interval_frame, text="20 min", font=('Arial', 12, 'bold'))
+        self.interval_label.pack(side=tk.RIGHT)
+        
+        # Duration setting
+        ttk.Label(settings_frame, text="Break Duration (seconds):", font=('Arial', 11)).grid(row=1, column=0, sticky=tk.W, pady=10)
+        
+        duration_frame = ttk.Frame(settings_frame)
+        duration_frame.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
+        
+        self.duration_var = tk.IntVar(value=20)
+        self.duration_scale = ttk.Scale(duration_frame, from_=10, to=60, orient=tk.HORIZONTAL,
+                                       variable=self.duration_var, command=self.update_eye_defender_duration)
+        self.duration_scale.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 10))
+        
+        self.duration_label = ttk.Label(duration_frame, text="20 sec", font=('Arial', 12, 'bold'))
+        self.duration_label.pack(side=tk.RIGHT)
+        
+        # === Control Frame ===
+        control_frame = ttk.LabelFrame(parent, text="🎮 Controls", padding="15")
+        control_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N), padx=10, pady=10)
+        
+        # Status display
+        status_display_frame = ttk.Frame(control_frame)
+        status_display_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(status_display_frame, text="Status:", font=('Arial', 11)).pack(side=tk.LEFT, padx=(0, 10))
+        self.eye_status_label = ttk.Label(status_display_frame, text="Disabled", 
+                                         font=('Arial', 12, 'bold'), foreground='gray')
+        self.eye_status_label.pack(side=tk.LEFT)
+        
+        # Timer display (countdown)
+        timer_frame = ttk.Frame(control_frame)
+        timer_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(timer_frame, text="Next Break In:", font=('Arial', 11)).pack(side=tk.LEFT, padx=(0, 10))
+        self.eye_timer_label = ttk.Label(timer_frame, text="--:--", 
+                                        font=('Arial', 20, 'bold'), foreground='#2196F3')
+        self.eye_timer_label.pack(side=tk.LEFT)
+        
+        # Stats display
+        stats_frame = ttk.Frame(control_frame)
+        stats_frame.pack(fill=tk.X, pady=(0, 15))
+        
+        ttk.Label(stats_frame, text="Total Reminders:", font=('Arial', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        self.eye_reminders_label = ttk.Label(stats_frame, text="0", font=('Arial', 10, 'bold'))
+        self.eye_reminders_label.pack(side=tk.LEFT, padx=(0, 20))
+        
+        ttk.Label(stats_frame, text="Last Reminder:", font=('Arial', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        self.eye_last_reminder_label = ttk.Label(stats_frame, text="Never", font=('Arial', 10))
+        self.eye_last_reminder_label.pack(side=tk.LEFT)
+        
+        # Buttons
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(fill=tk.X)
+        
+        self.eye_start_btn = ttk.Button(button_frame, text="▶️ Start Eye Defender", 
+                                       command=self.start_eye_defender, style='Accent.TButton')
+        self.eye_start_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.eye_stop_btn = ttk.Button(button_frame, text="⏹️ Stop", 
+                                      command=self.stop_eye_defender, state=tk.DISABLED)
+        self.eye_stop_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.eye_pause_btn = ttk.Button(button_frame, text="⏸️ Pause", 
+                                       command=self.pause_eye_defender, state=tk.DISABLED)
+        self.eye_pause_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(button_frame, text="👁️ Take Break Now", 
+                  command=self.manual_eye_break).pack(side=tk.LEFT)
+    
+    def update_eye_defender_interval(self, value):
+        """Update interval label and eye defender setting"""
+        minutes = float(value)
+        # Format display based on value
+        if minutes < 1:
+            seconds = int(minutes * 60)
+            self.interval_label.config(text=f"{seconds} sec")
+        elif minutes == int(minutes):
+            self.interval_label.config(text=f"{int(minutes)} min")
+        else:
+            self.interval_label.config(text=f"{minutes:.1f} min")
+        
+        # Update interval (will auto-restart timer if running)
+        self.eye_defender.set_interval(minutes)
+        
+        # Show feedback if Eye Defender is running
+        settings = self.eye_defender.get_settings()
+        if settings['is_running'] and not settings['is_paused']:
+            self.eye_status_label.config(text="Active ✓ (Timer Reset)", foreground='green')
+            # Reset label after 2 seconds
+            self.root.after(2000, lambda: self.eye_status_label.config(text="Active ✓"))
+    
+    def update_eye_defender_duration(self, value):
+        """Update duration label and eye defender setting"""
+        seconds = int(float(value))
+        self.duration_label.config(text=f"{seconds} sec")
+        self.eye_defender.set_blur_duration(seconds)
+    
+    def start_eye_defender(self):
+        """Start the eye defender"""
+        self.eye_defender.start()
+        self.eye_status_label.config(text="Active ✓", foreground='green')
+        self.eye_start_btn.config(state=tk.DISABLED)
+        self.eye_stop_btn.config(state=tk.NORMAL)
+        self.eye_pause_btn.config(state=tk.NORMAL)
+        print("✓ Eye Defender started")
+    
+    def stop_eye_defender(self):
+        """Stop the eye defender"""
+        self.eye_defender.stop()
+        self.eye_status_label.config(text="Disabled", foreground='gray')
+        self.eye_start_btn.config(state=tk.NORMAL)
+        self.eye_stop_btn.config(state=tk.DISABLED)
+        self.eye_pause_btn.config(state=tk.DISABLED, text="⏸️ Pause")
+        print("✓ Eye Defender stopped")
+    
+    def pause_eye_defender(self):
+        """Pause/resume the eye defender"""
+        settings = self.eye_defender.get_settings()
+        if settings['is_paused']:
+            self.eye_defender.resume()
+            self.eye_pause_btn.config(text="⏸️ Pause")
+            self.eye_status_label.config(text="Active ✓", foreground='green')
+        else:
+            self.eye_defender.pause()
+            self.eye_pause_btn.config(text="▶️ Resume")
+            self.eye_status_label.config(text="Paused", foreground='orange')
+    
+    def manual_eye_break(self):
+        """Trigger a manual eye break"""
+        if self.eye_defender.trigger_manual_break():
+            pass  # Callback will handle the blur overlay
+        else:
+            messagebox.showwarning("Not Active", "Eye Defender is not running. Start it first!")
+    
+    def show_eye_break_overlay(self):
+        """Show eye break blur overlay (runs on main thread)"""
+        try:
+            import subprocess
+            
+            # Get blur duration from eye defender
+            settings = self.eye_defender.get_settings()
+            blur_duration = settings['blur_duration_seconds']
+            
+            # Create blur overlay window
+            blur_window = tk.Toplevel(self.root)
+            blur_window.title("Eye Break")
+            
+            # Make it fullscreen and on top
+            blur_window.attributes('-fullscreen', True)
+            blur_window.attributes('-topmost', True)
+            blur_window.attributes('-alpha', 0.0)  # Start transparent
+            
+            # Semi-transparent dark background
+            blur_window.configure(bg='#000000')
+            
+            # Center frame for message
+            center_frame = ttk.Frame(blur_window)
+            center_frame.place(relx=0.5, rely=0.5, anchor='center')
+            
+            # Create message label
+            message_frame = tk.Frame(center_frame, bg='#1e1e1e', padx=40, pady=30, relief=tk.RAISED, bd=3)
+            message_frame.pack()
+            
+            title_label = tk.Label(message_frame, 
+                                  text="👁️ Eye Break Time!", 
+                                  font=('Arial', 36, 'bold'),
+                                  fg='#4CAF50',
+                                  bg='#1e1e1e')
+            title_label.pack(pady=(0, 20))
+            
+            instruction_label = tk.Label(message_frame,
+                                        text=f"Look at something 20 feet away",
+                                        font=('Arial', 24),
+                                        fg='white',
+                                        bg='#1e1e1e')
+            instruction_label.pack(pady=(0, 10))
+            
+            # Countdown label
+            countdown_label = tk.Label(message_frame,
+                                      text=f"{blur_duration}",
+                                      font=('Arial', 48, 'bold'),
+                                      fg='#FFC107',
+                                      bg='#1e1e1e')
+            countdown_label.pack(pady=20)
+            
+            hint_label = tk.Label(message_frame,
+                                 text="Press ESC to skip",
+                                 font=('Arial', 12),
+                                 fg='#888888',
+                                 bg='#1e1e1e')
+            hint_label.pack()
+            
+            # Countdown state
+            remaining = [blur_duration]
+            
+            def fade_in():
+                """Gradually fade in the overlay"""
+                current_alpha = blur_window.attributes('-alpha')
+                if current_alpha < 0.85:
+                    blur_window.attributes('-alpha', current_alpha + 0.05)
+                    blur_window.after(50, fade_in)
+            
+            def update_countdown():
+                """Update countdown timer"""
+                if remaining[0] > 0:
+                    countdown_label.config(text=str(remaining[0]))
+                    remaining[0] -= 1
+                    blur_window.after(1000, update_countdown)
+                else:
+                    fade_out()
+            
+            def fade_out():
+                """Gradually fade out and close"""
+                current_alpha = blur_window.attributes('-alpha')
+                if current_alpha > 0:
+                    blur_window.attributes('-alpha', current_alpha - 0.1)
+                    blur_window.after(50, fade_out)
+                else:
+                    blur_window.destroy()
+            
+            def skip_break(event=None):
+                """Allow user to skip the break"""
+                blur_window.destroy()
+            
+            # Bind ESC key to skip
+            blur_window.bind('<Escape>', skip_break)
+            
+            # Start fade in and countdown
+            blur_window.after(100, fade_in)
+            blur_window.after(1000, update_countdown)
+            
+            # Play sound notification
+            sound_script = f'''
+            display notification "Look 20 feet away for {blur_duration} seconds" ¬
+                with title "👁️ Eye Break Time!" ¬
+                sound name "Glass"
+            '''
+            subprocess.Popen(['osascript', '-e', sound_script], 
+                           stdout=subprocess.DEVNULL, 
+                           stderr=subprocess.DEVNULL)
+            
+        except Exception as e:
+            print(f"⚠️  Error showing eye break overlay: {e}")
     
     def load_app_lists(self):
         """Load current app lists from flow amplifier"""
@@ -1053,6 +1350,24 @@ class NotificationGUI:
         else:
             self.violations_label.config(text="N/A")
         
+        # Update Eye Defender stats
+        eye_settings = self.eye_defender.get_settings()
+        self.eye_reminders_label.config(text=str(eye_settings['total_reminders']))
+        if eye_settings['last_reminder']:
+            self.eye_last_reminder_label.config(
+                text=eye_settings['last_reminder'].strftime('%H:%M:%S'))
+        
+        # Update countdown timer
+        if eye_settings['is_running'] and not eye_settings['is_paused']:
+            time_remaining = eye_settings['time_remaining_seconds']
+            minutes = time_remaining // 60
+            seconds = time_remaining % 60
+            self.eye_timer_label.config(text=f"{minutes:02d}:{seconds:02d}", foreground='#2196F3')
+        elif eye_settings['is_paused']:
+            self.eye_timer_label.config(text="PAUSED", foreground='orange')
+        else:
+            self.eye_timer_label.config(text="--:--", foreground='gray')
+        
         # Update metrics
         metrics = self.flow_monitor.get_detailed_metrics()
         self.update_metrics_display(metrics)
@@ -1119,6 +1434,7 @@ class NotificationGUI:
     def quit_app(self):
         """Quit the application"""
         self.running = False
+        self.eye_defender.stop()
         self.flow_monitor.stop()
         self.root.quit()
     

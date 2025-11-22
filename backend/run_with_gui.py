@@ -14,8 +14,13 @@ from flow_monitor.main import FlowMonitorSystem
 from flow_monitor.gui import NotificationGUI
 
 
-def main():
-    """Main entry point with GUI"""
+def main(eye_defender_enabled=True):
+    """
+    Main entry point with GUI
+    
+    Args:
+        eye_defender_enabled: Whether to automatically start Eye Defender (default: True)
+    """
     print("\n" + "="*60)
     print("🎯 PRISM - AI Flow State Facilitator")
     print("="*60)
@@ -38,9 +43,11 @@ def main():
     
     if flow_amplifier:
         print("\n🎨 Launching GUI...")
+        if eye_defender_enabled:
+            print("👁️  Eye Defender will auto-start...")
         
         # Create and run GUI
-        gui = NotificationGUI(flow_amplifier, monitor)
+        gui = NotificationGUI(flow_amplifier, monitor, auto_start_eye_defender=eye_defender_enabled)
         
         try:
             gui.run()
@@ -75,4 +82,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Prism - AI Flow State Facilitator')
+    parser.add_argument('--no-eye-defender', action='store_true',
+                      help='Disable Eye Defender auto-start (default: enabled)')
+    
+    args = parser.parse_args()
+    
+    # Eye Defender is enabled by default, disabled only with --no-eye-defender flag
+    main(eye_defender_enabled=not args.no_eye_defender)
