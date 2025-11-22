@@ -1,0 +1,78 @@
+#!/usr/bin/env python3
+"""
+Flow State Monitor with GUI
+Run this script to start monitoring with the graphical interface
+"""
+
+import sys
+import os
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from flow_monitor.main import FlowMonitorSystem
+from flow_monitor.gui import NotificationGUI
+
+
+def main():
+    """Main entry point with GUI"""
+    print("\n" + "="*60)
+    print("🎯 PRISM - AI Flow State Facilitator")
+    print("="*60)
+    print("\nInitializing system...\n")
+    
+    # Initialize the monitoring system with amplification and whitelist support
+    monitor = FlowMonitorSystem(
+        analysis_interval=3.0,
+        window_size=60,
+        enable_amplification=True,
+        whitelist_mode=True,  # Can be enabled from GUI
+        allowed_apps=["Code", "Terminal", "Safari", "Python"] # Will be set from GUI
+    )
+    
+    # Start monitoring
+    monitor.start()
+    
+    # Get flow amplifier
+    flow_amplifier = monitor.get_flow_amplifier()
+    
+    if flow_amplifier:
+        print("\n🎨 Launching GUI...")
+        
+        # Create and run GUI
+        gui = NotificationGUI(flow_amplifier, monitor)
+        
+        try:
+            gui.run()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            monitor.stop()
+            
+            # Print final statistics
+            print("\n📊 Session Summary:")
+            trends = monitor.get_trends(window_minutes=60)
+            print(f"   Average Flow Score: {trends['avg_flow_score']}")
+            print(f"   Time in Flow: {trends['flow_percentage']:.1f}%")
+            print(f"   Time in Deep Flow: {trends['deep_flow_percentage']:.1f}%")
+            print(f"   Overall Trend: {trends['trend']}")
+            
+            if flow_amplifier:
+                amp_stats = flow_amplifier.get_statistics()
+                print(f"\n🛡️  Amplification Summary:")
+                print(f"   Notifications Suppressed: {amp_stats['suppressed_count']}")
+                print(f"   Apps Banished: {amp_stats['banished_apps']}")
+    else:
+        print("⚠️  Flow amplification not available")
+        print("Running in monitoring-only mode")
+        
+        try:
+            while True:
+                import time
+                time.sleep(1)
+        except KeyboardInterrupt:
+            monitor.stop()
+
+
+if __name__ == "__main__":
+    main()

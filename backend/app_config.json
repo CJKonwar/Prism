@@ -1,0 +1,41 @@
+{
+  "protected_apps": [
+    "Terminal",
+    "iTerm",
+    "Visual Studio Code",
+    "Xcode",
+    "PyCharm",
+    "IntelliJ IDEA",
+    "Sublime Text",
+    "Vim",
+    "Calendar",
+    "Messages",
+    "FaceTime",
+    "Zoom",
+    "Teams"
+  ],
+  "distraction_apps": [
+    "Twitter",
+    "Facebook",
+    "Instagram",
+    "TikTok",
+    "Reddit",
+    "YouTube",
+    "Netflix",
+    "Discord",
+    "Telegram",
+    "WhatsApp",
+    "News",
+    "Safari",
+    "Chrome",
+    "Firefox"
+  ],
+  "allowed_apps": [
+    "Code",
+    "Google Chrome",
+    "Python",
+    "Safari",
+    "Spotify",
+    "Terminal"
+  ]
+}
