@@ -4,12 +4,12 @@ Real-time flow state detection and intelligent focus protection for macOS.
 
 ## Features
 
-- **🎯 Real-Time Flow Detection**: Monitors keyboard, mouse, and window activity to detect deep focus
-- **🛡️ Smart Notification Firewall**: ML-based filtering blocks distracting notifications
-- **🔒 Whitelist Mode**: Only allowed apps run, others auto-minimized
-- **📱 App Browser**: Point-and-click selection of installed or running apps
-- **🚫 Do Not Disturb**: Automatic DND activation during flow
-- **📊 Live Dashboard**: Real-time metrics and flow visualization
+- ** Real-Time Flow Detection**: Monitors keyboard, mouse, and window activity to detect deep focus
+- ** Smart Notification Firewall**: ML-based filtering blocks distracting notifications
+- ** Whitelist Mode**: Only allowed apps run, others auto-minimized
+- ** App Browser**: Point-and-click selection of installed or running apps
+- ** Do Not Disturb**: Automatic DND activation during flow
+- ** Live Dashboard**: Real-time metrics and flow visualization
 
 ## Quick Start
 
@@ -38,17 +38,6 @@ Grant permissions in **System Preferences → Security & Privacy → Privacy**:
 4. **Enable Whitelist Mode**: Check the box
 5. **Focus**: Only your selected apps will run, everything else gets minimized
 
-### Example: Dev Mode Setup
-
-```
-Allowed Apps:
-✅ Visual Studio Code
-✅ Terminal
-✅ Safari (for docs)
-✅ Spotify (optional)
-
-Result: Open any other app → Instantly minimized
-```
 
 ### Flow State Levels
 
