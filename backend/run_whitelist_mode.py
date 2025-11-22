@@ -34,7 +34,7 @@ def main():
             if allowed_apps:
                 break
             else:
-                print("⚠️  Please add at least one app!")
+                print(" Please add at least one app!")
                 continue
         allowed_apps.append(app)
         print(f"  ✓ Added: {app}")

@@ -33,7 +33,7 @@ class NotificationGUI:
         self.auto_start_eye_defender = auto_start_eye_defender
         
         # Initialize Eye Defender (will be configured from GUI)
-        self.eye_defender = EyeDefender(interval_minutes=0.3, blur_duration_seconds=20)
+        self.eye_defender = EyeDefender(interval_minutes=30, blur_duration_seconds=20)
         
         self.root = tk.Tk()
         self.root.title("Prism - Flow State Monitor")
