@@ -78,33 +78,6 @@ Result: Open any other app → Instantly minimized
 - `active_app_count`: Number of unique apps used
 - `avg_time_per_app`: Average time spent per app
 
-## API Usage
-
-```python
-from flow_monitor.main import FlowMonitorSystem
-
-# Initialize
-monitor = FlowMonitorSystem(analysis_interval=5.0)
-
-# Add callback for state changes
-def on_state_change(analysis):
-    print(f"Flow State: {analysis['flow_state']}")
-    print(f"Score: {analysis['flow_score']}")
-
-monitor.add_flow_state_callback(on_state_change)
-
-# Start monitoring
-monitor.start()
-
-# Get current state
-state = monitor.get_current_state()
-
-# Get trends
-trends = monitor.get_trends(window_minutes=10)
-
-# Stop monitoring
-monitor.stop()
-```
 
 ## Quick Start
 
