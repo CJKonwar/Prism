@@ -20,7 +20,7 @@ class EyeDefender:
     Every X minutes, blur screen for Y seconds as a reminder to look away
     """
     
-    def __init__(self, interval_minutes=1, blur_duration_seconds=20):
+    def __init__(self, interval_minutes=1.0, blur_duration_seconds=20):
         """
         Initialize Eye Defender
         

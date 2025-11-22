@@ -33,7 +33,7 @@ class NotificationGUI:
         self.auto_start_eye_defender = auto_start_eye_defender
         
         # Initialize Eye Defender (will be configured from GUI)
-        self.eye_defender = EyeDefender(interval_minutes=0.2, blur_duration_seconds=20)
+        self.eye_defender = EyeDefender(interval_minutes=0.3, blur_duration_seconds=20)
         
         self.root = tk.Tk()
         self.root.title("Prism - Flow State Monitor")
@@ -540,10 +540,35 @@ class NotificationGUI:
         """Show eye break blur overlay (runs on main thread)"""
         try:
             import subprocess
+            import os
             
             # Get blur duration from eye defender
             settings = self.eye_defender.get_settings()
             blur_duration = settings['blur_duration_seconds']
+            
+            # Get path to music file
+            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            music_path = os.path.join(current_dir, 'assets', 'calm_music.mp3')
+            
+            # Start playing music if file exists
+            music_process = None
+            if os.path.exists(music_path):
+                try:
+                    # Try using pygame for music playback
+                    try:
+                        import pygame
+                        pygame.mixer.init()
+                        pygame.mixer.music.load(music_path)
+                        pygame.mixer.music.play()
+                        print(f"🎵 Playing calm music for {blur_duration} seconds...")
+                    except ImportError:
+                        # Fallback to afplay on macOS
+                        music_process = subprocess.Popen(['afplay', music_path])
+                        print(f"🎵 Playing calm music (afplay) for {blur_duration} seconds...")
+                except Exception as e:
+                    print(f"⚠️  Could not play music: {e}")
+            else:
+                print(f"⚠️  Music file not found: {music_path}")
             
             # Create blur overlay window
             blur_window = tk.Toplevel(self.root)
@@ -613,6 +638,24 @@ class NotificationGUI:
                 else:
                     fade_out()
             
+            def stop_music():
+                """Stop music playback"""
+                try:
+                    # Stop pygame music if it was used
+                    try:
+                        import pygame
+                        if pygame.mixer.get_init():
+                            pygame.mixer.music.stop()
+                            pygame.mixer.quit()
+                    except:
+                        pass
+                    
+                    # Stop afplay process if it was used
+                    if music_process and music_process.poll() is None:
+                        music_process.terminate()
+                except Exception as e:
+                    print(f"⚠️  Error stopping music: {e}")
+            
             def fade_out():
                 """Gradually fade out and close"""
                 current_alpha = blur_window.attributes('-alpha')
@@ -620,10 +663,12 @@ class NotificationGUI:
                     blur_window.attributes('-alpha', current_alpha - 0.1)
                     blur_window.after(50, fade_out)
                 else:
+                    stop_music()
                     blur_window.destroy()
             
             def skip_break(event=None):
                 """Allow user to skip the break"""
+                stop_music()
                 blur_window.destroy()
             
             # Bind ESC key to skip
@@ -632,6 +677,9 @@ class NotificationGUI:
             # Start fade in and countdown
             blur_window.after(100, fade_in)
             blur_window.after(1000, update_countdown)
+            
+            # Schedule music to stop after blur duration (in milliseconds)
+            blur_window.after(blur_duration * 1000, stop_music)
             
             # Play sound notification
             sound_script = f'''
