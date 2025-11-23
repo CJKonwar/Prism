@@ -150,7 +150,7 @@ class AIAssistant:
                         "duration_minutes": {
                             "type": "integer",
                             "description": "How long to play (5-30 minutes)",
-                            "default": 0.1
+                            "default": 0.17
                         }
                     },
                     "required": ["reason"]
@@ -351,13 +351,18 @@ Consider:
 - Signs of stress, fatigue, or distraction
 
 Examples:
-- If mood shows "angry" with frustration alerts → show_suggestion_notification with title="Extreme Frustration Detected", suggestion_type="breathing_exercise" or "calm_music", severity="urgent"
-- If stress/negative emotions detected → show_suggestion_notification with suggestion_type="calm_music" to help user relax with soothing music
+- If mood shows "angry" with frustration alerts → RANDOMLY choose between:
+  * show_suggestion_notification with suggestion_type="breathing_exercise" (interactive meditation game)
+  * show_suggestion_notification with suggestion_type="calm_music" (soothing background music)
+- If stress/negative emotions detected → ALTERNATE between breathing exercises and calm music (don't repeat same suggestion)
 - If low flow score (< 40) for extended period → show_suggestion_notification with suggestion_type="take_break" or "dnd_mode"
 - If extended screen time (> 60 min) → show_suggestion_notification with suggestion_type="eye_break"
 - If everything is good → show_suggestion_notification with suggestion_type="encouragement"
 
-Music Feature: Use suggestion_type="calm_music" when detecting frustration, anger, stress, or anxiety to play calming music from assets folder. Include action_params with duration_minutes (5-30).
+IMPORTANT: For frustration/stress/anger - Use VARIETY:
+- Sometimes suggest "breathing_exercise" for active stress relief
+- Sometimes suggest "calm_music" for passive relaxation (duration_minutes: 5-30 in action_params)
+- Check conversation history to avoid repeating the same intervention type consecutively
 
 Create clear, empathetic messages that explain WHY you're suggesting the action.
 
@@ -469,7 +474,7 @@ Respond by calling show_suggestion_notification tool."""
         with self.lock:
             return self.conversation_history.copy()
     
-    def play_calm_music(self, reason="stress relief", duration_minutes=0.1):
+    def play_calm_music(self, reason="stress relief", duration_minutes=0.17):
         """Play calm music from assets folder"""
         try:
             if self.music_playing:
