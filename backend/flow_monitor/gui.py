@@ -210,22 +210,7 @@ class NotificationGUI:
         self.flow_progress = ttk.Progressbar(progress_container, length=400, mode='determinate')
         self.flow_progress.pack(fill=tk.X)
         
-        # Right side - Quick stats
-        stats_panel = ttk.Frame(header_frame, style='Card.TFrame')
-        stats_panel.grid(row=0, column=1, sticky=(tk.N, tk.E), padx=(20, 0))
-        
-        # Stats cards in right panel
-        self._create_stat_card(stats_panel, "DND", "OFF", 0)
-        self.dnd_status_label = stats_panel.winfo_children()[0].winfo_children()[1]
-        
-        self._create_stat_card(stats_panel, "Suppressed", "0", 1)
-        self.suppressed_label = stats_panel.winfo_children()[1].winfo_children()[1]
-        
-        self._create_stat_card(stats_panel, "Banished", "0", 2)
-        self.banished_label = stats_panel.winfo_children()[2].winfo_children()[1]
-        
-        self._create_stat_card(stats_panel, "Violations", "N/A", 3)
-        self.violations_label = stats_panel.winfo_children()[3].winfo_children()[1]
+        # Right side - Quick stats removed for cleaner interface
         
         # === Main Content Area with Tabs ===
         content_frame = ttk.Frame(main_frame, style='Card.TFrame')
@@ -239,39 +224,7 @@ class NotificationGUI:
         notebook = ttk.Notebook(content_frame)
         notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(5, 0))
         
-        # Tab 1: All Notifications
-        all_tab = ttk.Frame(notebook, style='Card.TFrame')
-        all_tab.columnconfigure(0, weight=1)
-        all_tab.rowconfigure(0, weight=1)
-        notebook.add(all_tab, text="All Notifications")
-        
-        self.all_notif_text = scrolledtext.ScrolledText(all_tab, wrap=tk.WORD, height=15,
-                                                        font=('SF Mono', 10),
-                                                        bg=self.colors['bg_primary'],
-                                                        fg=self.colors['text_primary'],
-                                                        relief='flat',
-                                                        borderwidth=0,
-                                                        padx=12, pady=12)
-        self.all_notif_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        self.all_notif_text.config(state=tk.DISABLED)
-        
-        # Tab 2: Suppressed Notifications
-        suppressed_tab = ttk.Frame(notebook, style='Card.TFrame')
-        suppressed_tab.columnconfigure(0, weight=1)
-        suppressed_tab.rowconfigure(0, weight=1)
-        notebook.add(suppressed_tab, text="Suppressed")
-        
-        self.suppressed_text = scrolledtext.ScrolledText(suppressed_tab, wrap=tk.WORD, height=15,
-                                                         font=('SF Mono', 10),
-                                                         bg=self.colors['bg_primary'],
-                                                         fg=self.colors['text_primary'],
-                                                         relief='flat',
-                                                         borderwidth=0,
-                                                         padx=12, pady=12)
-        self.suppressed_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        self.suppressed_text.config(state=tk.DISABLED)
-        
-        # Tab 3: Metrics
+        # Tab 1: Metrics
         metrics_tab = ttk.Frame(notebook, style='Card.TFrame')
         metrics_tab.columnconfigure(0, weight=1)
         metrics_tab.rowconfigure(0, weight=1)
@@ -287,35 +240,35 @@ class NotificationGUI:
         self.metrics_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.metrics_text.config(state=tk.DISABLED)
         
-        # Tab 4: App Management
+        # Tab 2: App Management
         apps_tab = ttk.Frame(notebook, style='Card.TFrame')
         apps_tab.columnconfigure(0, weight=1)
         apps_tab.rowconfigure(0, weight=1)
         notebook.add(apps_tab, text="App Settings")
         self.create_app_management_tab(apps_tab)
         
-        # Tab 5: Eye Defender
+        # Tab 3: Eye Defender
         eye_tab = ttk.Frame(notebook, style='Card.TFrame')
         eye_tab.columnconfigure(0, weight=1)
         eye_tab.rowconfigure(0, weight=1)
         notebook.add(eye_tab, text="Eye Defender")
         self.create_eye_defender_tab(eye_tab)
         
-        # Tab 6: Mood Monitor
+        # Tab 4: Mood Monitor
         mood_tab = ttk.Frame(notebook, style='Card.TFrame')
         mood_tab.columnconfigure(0, weight=1)
         mood_tab.rowconfigure(0, weight=1)
         notebook.add(mood_tab, text="Mood Monitor")
         self.create_mood_monitor_tab(mood_tab)
         
-        # Tab 7: Session Stats
+        # Tab 5: Session Stats
         stats_tab = ttk.Frame(notebook, style='Card.TFrame')
         stats_tab.columnconfigure(0, weight=1)
         stats_tab.rowconfigure(0, weight=1)
         notebook.add(stats_tab, text="Session Stats")
         self.create_session_stats_tab(stats_tab)
         
-        # Tab 8: AI Recommendations
+        # Tab 6: AI Recommendations
         ai_tab = ttk.Frame(notebook, style='Card.TFrame')
         ai_tab.columnconfigure(0, weight=1)
         ai_tab.rowconfigure(0, weight=1)
@@ -452,13 +405,42 @@ class NotificationGUI:
         self.load_app_lists()
     
     def create_eye_defender_tab(self, parent):
-        """Create the Eye Defender (20-20-20 rule) interface"""
-        # Main container
+        """Create the Eye Defender (20-20-20 rule) interface with scrollbar"""
+        # Configure parent
         parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(2, weight=1)
+        parent.rowconfigure(0, weight=1)
+        
+        # Create scrollable canvas
+        canvas = tk.Canvas(parent, bg=self.colors['bg_primary'], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        
+        scrollable_frame = ttk.Frame(canvas, style='Card.TFrame')
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _bind_mousewheel(event):
+            canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_mousewheel(event):
+            canvas.unbind_all("<MouseWheel>")
+        
+        canvas.bind("<Enter>", _bind_mousewheel)
+        canvas.bind("<Leave>", _unbind_mousewheel)
         
         # === Eye Defender Header ===
-        header_frame = ttk.LabelFrame(parent, text="Eye Defender - 20-20-20 Rule", padding="15")
+        header_frame = ttk.LabelFrame(scrollable_frame, text="Eye Defender - 20-20-20 Rule", padding="15")
         header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         
         desc_text = (
@@ -469,7 +451,7 @@ class NotificationGUI:
         ttk.Label(header_frame, text=desc_text, foreground='#666', wraplength=800).grid(row=0, column=0, sticky=tk.W)
         
         # === Settings Frame ===
-        settings_frame = ttk.LabelFrame(parent, text="Timer Settings (Changes Apply Immediately)", padding="15")
+        settings_frame = ttk.LabelFrame(scrollable_frame, text="Timer Settings (Changes Apply Immediately)", padding="15")
         settings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         settings_frame.columnconfigure(1, weight=1)
         
@@ -508,7 +490,7 @@ class NotificationGUI:
         self.duration_label.pack(side=tk.RIGHT)
         
         # === Control Frame ===
-        control_frame = ttk.LabelFrame(parent, text="Controls", padding="15")
+        control_frame = ttk.LabelFrame(scrollable_frame, text="Controls", padding="15")
         control_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N), padx=10, pady=10)
         
         # Status display
@@ -520,26 +502,28 @@ class NotificationGUI:
                                          font=('Arial', 12, 'bold'), foreground='gray')
         self.eye_status_label.pack(side=tk.LEFT)
         
-        # Timer display (countdown)
+        # Timer display (countdown) - Fixed layout with proper spacing
         timer_frame = ttk.Frame(control_frame)
         timer_frame.pack(fill=tk.X, pady=(0, 15))
         
-        ttk.Label(timer_frame, text="Next Break In:", font=('Arial', 11)).pack(side=tk.LEFT, padx=(0, 10))
+        ttk.Label(timer_frame, text="Next Break In:", font=('Arial', 11)).grid(row=0, column=0, sticky=tk.W, padx=(0, 10))
         self.eye_timer_label = ttk.Label(timer_frame, text="--:--", 
                                         font=('Arial', 20, 'bold'), foreground='#2196F3')
-        self.eye_timer_label.pack(side=tk.LEFT)
+        self.eye_timer_label.grid(row=0, column=1, sticky=tk.W)
+        timer_frame.columnconfigure(1, weight=1)
         
-        # Stats display
+        # Stats display - Fixed layout with grid
         stats_frame = ttk.Frame(control_frame)
         stats_frame.pack(fill=tk.X, pady=(0, 15))
         
-        ttk.Label(stats_frame, text="Total Reminders:", font=('Arial', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(stats_frame, text="Total Reminders:", font=('Arial', 10)).grid(row=0, column=0, sticky=tk.W, padx=(0, 5))
         self.eye_reminders_label = ttk.Label(stats_frame, text="0", font=('Arial', 10, 'bold'))
-        self.eye_reminders_label.pack(side=tk.LEFT, padx=(0, 20))
+        self.eye_reminders_label.grid(row=0, column=1, sticky=tk.W, padx=(0, 30))
         
-        ttk.Label(stats_frame, text="Last Reminder:", font=('Arial', 10)).pack(side=tk.LEFT, padx=(0, 5))
+        ttk.Label(stats_frame, text="Last Reminder:", font=('Arial', 10)).grid(row=0, column=2, sticky=tk.W, padx=(0, 5))
         self.eye_last_reminder_label = ttk.Label(stats_frame, text="Never", font=('Arial', 10))
-        self.eye_last_reminder_label.pack(side=tk.LEFT)
+        self.eye_last_reminder_label.grid(row=0, column=3, sticky=tk.W)
+        stats_frame.columnconfigure(3, weight=1)
         
         # Buttons
         button_frame = ttk.Frame(control_frame)
@@ -2709,23 +2693,6 @@ class NotificationGUI:
         self.flow_state_label.config(text=state, foreground=self.colors.get(state, self.colors['text_primary']))
         self.flow_score_label.config(text=f"{score:.1f}%")
         self.flow_progress['value'] = score
-        
-        # Update amplification status with modern colors
-        if amp_stats['dnd_enabled']:
-            self.dnd_status_label.config(text="ON", foreground=self.colors['danger'])
-        else:
-            self.dnd_status_label.config(text="OFF", foreground=self.colors['success'])
-        
-        self.suppressed_label.config(text=str(amp_stats['suppressed_count']))
-        self.banished_label.config(text=str(amp_stats['banished_apps']))
-        
-        # Update whitelist status
-        whitelist_controller = self.flow_monitor.get_whitelist_controller()
-        if whitelist_controller:
-            whitelist_stats = whitelist_controller.get_statistics()
-            self.violations_label.config(text=str(whitelist_stats['violation_count']))
-        else:
-            self.violations_label.config(text="N/A")
         
         # Update Eye Defender stats
         eye_settings = self.eye_defender.get_settings()

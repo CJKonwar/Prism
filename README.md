@@ -117,16 +117,14 @@ python3 run_whitelist_mode.py
 
 ## Dashboard Tabs
 
-The GUI provides 8 specialized tabs for complete system control:
+The GUI provides 6 specialized tabs for complete system control:
 
-1. **All Notifications**: Live feed of all captured system notifications
-2. **Suppressed**: Notifications blocked during flow states (restored after)
-3. **Metrics**: Real-time stats - typing speed, mouse activity, DND status, task switches
-4. **App Settings**: Whitelist management with "Add Running Apps" quick-add feature
-5. **Eye Defender**: Manual 20-20-20 eye break trigger with fullscreen overlay
-6. **Mood Monitor**: Current emotion display with start/stop controls
-7. **Session Stats**: Visual graphs of flow analysis, mood trends, activity, app usage (with mouse scrolling)
-8. **AI Recommendations**: Personalized insights + full conversation history
+1. **Metrics**: Real-time stats - typing speed, mouse activity, DND status, task switches
+2. **App Settings**: Whitelist management with "Add Running Apps" quick-add feature
+3. **Eye Defender**: Manual 20-20-20 eye break trigger with fullscreen overlay
+4. **Mood Monitor**: Current emotion display with start/stop controls
+5. **Session Stats**: Visual graphs of flow analysis, mood trends, activity, app usage (with mouse scrolling)
+6. **AI Recommendations**: Personalized insights + full conversation history
 
 ## Architecture
 
