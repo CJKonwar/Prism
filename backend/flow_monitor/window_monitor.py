@@ -191,14 +191,14 @@ class WindowMonitor:
         self.running = True
         self.monitor_thread = Thread(target=self.monitor_loop, daemon=True)
         self.monitor_thread.start()
-        print("✓ Window monitor started")
+        print("Window monitor started")
     
     def stop(self):
         """Stop monitoring window events"""
         self.running = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=2)
-        print("✓ Window monitor stopped")
+        print("Window monitor stopped")
     
     def reset(self):
         """Reset all counters"""

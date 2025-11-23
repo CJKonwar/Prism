@@ -53,7 +53,7 @@ class AIAssistant:
         # Analysis history
         self.analysis_history = []
         
-        print("🤖 AI Assistant initialized with Gemini")
+        print("AI Assistant initialized with Gemini")
         print(f"   Available tools: {len(self.system_tools)}")
     
     def _define_system_tools(self):
@@ -244,18 +244,18 @@ class AIAssistant:
             callback: Function to call when tool is triggered
         """
         self.action_callbacks[tool_name] = callback
-        print(f"✓ Registered callback for: {tool_name}")
+        print(f"Registered callback for: {tool_name}")
     
     def start(self):
         """Start the AI assistant"""
         if self.running:
-            print("⚠️  AI Assistant already running")
+            print("AI Assistant already running")
             return
         
         self.running = True
         self.ai_thread = Thread(target=self._analysis_loop, daemon=True)
         self.ai_thread.start()
-        print("✓ AI Assistant started")
+        print("AI Assistant started")
     
     def stop(self):
         """Stop the AI assistant"""
@@ -263,7 +263,7 @@ class AIAssistant:
             return
         
         self.running = False
-        print("✓ AI Assistant stopped")
+        print("AI Assistant stopped")
     
     def _analysis_loop(self):
         """Main analysis loop"""
@@ -283,7 +283,7 @@ class AIAssistant:
             log_file = self.session_logger.get_log_file_path()
             
             if not os.path.exists(log_file):
-                print("⚠️  Session log file not found yet")
+                print("Session log file not found yet")
                 return
             
             # Read session data
@@ -291,7 +291,7 @@ class AIAssistant:
                 session_data = json.load(f)
             
             if 'summary' not in session_data:
-                print("⚠️  Session summary not available yet")
+                print("Session summary not available yet")
                 return
             
             summary = session_data['summary']
@@ -341,7 +341,7 @@ Respond by calling show_suggestion_notification tool."""
             if response.candidates[0].content.parts[0].function_call:
                 function_call = response.candidates[0].content.parts[0].function_call
                 
-                print(f"\n🤖 AI Recommendation:")
+                print(f"\nAI Recommendation:")
                 print(f"   Action: {function_call.name}")
                 print(f"   Arguments: {dict(function_call.args)}")
                 
@@ -360,13 +360,13 @@ Respond by calling show_suggestion_notification tool."""
                 if function_call.name in self.action_callbacks:
                     try:
                         self.action_callbacks[function_call.name](**dict(function_call.args))
-                        print(f"   ✓ Action executed")
+                        print(f"   Action executed")
                     except Exception as e:
-                        print(f"   ⚠️  Error executing action: {e}")
+                        print(f"   Error executing action: {e}")
                 else:
-                    print(f"   ⚠️  No callback registered for: {function_call.name}")
+                    print(f"   No callback registered for: {function_call.name}")
             else:
-                print("\n🤖 AI Analysis: No specific action needed")
+                print("\nAI Analysis: No specific action needed")
                 if hasattr(response, 'text'):
                     print(f"   {response.text}")
                     
@@ -443,5 +443,5 @@ Respond by calling show_suggestion_notification tool."""
                     'recommendations': self.analysis_history
                 }, f, indent=2)
         
-        print(f"💾 AI analysis log saved: {log_file}")
+        print(f"AI analysis log saved: {log_file}")
         return log_file

@@ -134,13 +134,13 @@ class MouseMonitor:
             on_scroll=self.on_scroll
         )
         self.listener.start()
-        print("✓ Mouse monitor started")
+        print("Mouse monitor started")
     
     def stop(self):
         """Stop monitoring mouse events"""
         if self.listener:
             self.listener.stop()
-            print("✓ Mouse monitor stopped")
+            print("Mouse monitor stopped")
     
     def reset(self):
         """Reset all counters"""

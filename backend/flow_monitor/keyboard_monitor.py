@@ -104,13 +104,13 @@ class KeyboardMonitor:
         """Start monitoring keyboard events"""
         self.listener = keyboard.Listener(on_press=self.on_press)
         self.listener.start()
-        print("✓ Keyboard monitor started")
+        print("Keyboard monitor started")
     
     def stop(self):
         """Stop monitoring keyboard events"""
         if self.listener:
             self.listener.stop()
-            print("✓ Keyboard monitor stopped")
+            print("Keyboard monitor stopped")
     
     def reset(self):
         """Reset all counters"""

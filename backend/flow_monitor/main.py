@@ -152,18 +152,18 @@ class FlowMonitorSystem:
         filled = int((score / 100) * bar_length)
         bar = '█' * filled + '░' * (bar_length - filled)
         
-        # Status emoji
-        emoji_map = {
-            'DEEP_FLOW': '🔥',
-            'FLOW': '✨',
-            'FOCUSED': '🎯',
-            'WORKING': '💻',
-            'DISTRACTED': '😵'
+        # Status markers
+        marker_map = {
+            'DEEP_FLOW': '[**]',
+            'FLOW': '[*]',
+            'FOCUSED': '[+]',
+            'WORKING': '[~]',
+            'DISTRACTED': '[!]'
         }
         
-        emoji = emoji_map.get(state, '❓')
+        marker = marker_map.get(state, '[?]')
         
-        print(f"\r{emoji} {state:12} | {bar} {score:5.1f}% | Duration: {duration:6.1f}s", end='', flush=True)
+        print(f"\r{marker} {state:12} | {bar} {score:5.1f}% | Duration: {duration:6.1f}s", end='', flush=True)
     
     def _trigger_callbacks(self, flow_analysis):
         """Trigger registered callbacks"""
@@ -184,7 +184,7 @@ class FlowMonitorSystem:
             return
         
         print("\n" + "="*60)
-        print("🚀 Starting Flow State Detection System")
+        print("Starting Flow State Detection System")
         print("="*60)
         
         # Start whitelist controller if enabled
@@ -215,17 +215,17 @@ class FlowMonitorSystem:
         self.analysis_thread = Thread(target=self.analysis_loop, daemon=True)
         self.analysis_thread.start()
         
-        print("✓ All systems operational")
+        print("All systems operational")
         if self.flow_amplifier:
-            print("✓ Flow amplification ready")
+            print("Flow amplification ready")
         if self.whitelist_controller:
-            print("✓ Whitelist mode active")
+            print("Whitelist mode active")
         if self.mood_monitor:
-            print("✓ Mood monitoring active")
+            print("Mood monitoring active")
         if self.session_logger:
-            print(f"✓ Session logging active → {self.session_logger.get_log_file_path()}")
+            print(f"Session logging active -> {self.session_logger.get_log_file_path()}")
         if self.ai_assistant:
-            print("✓ AI assistant active (analyzing productivity every 30s)")
+            print("AI assistant active (analyzing productivity every 30s)")
         print("="*60)
         print("\nMonitoring your flow state... (Press Ctrl+C to stop)\n")
     
@@ -235,7 +235,7 @@ class FlowMonitorSystem:
             return
         
         print("\n\n" + "="*60)
-        print("🛑 Stopping Flow State Detection System")
+        print("Stopping Flow State Detection System")
         print("="*60)
         
         self.running = False
@@ -272,7 +272,7 @@ class FlowMonitorSystem:
         if self.analysis_thread:
             self.analysis_thread.join(timeout=2)
         
-        print("✓ All systems stopped")
+        print("All systems stopped")
         print("="*60 + "\n")
     
     def get_current_state(self):
@@ -339,7 +339,7 @@ class FlowMonitorSystem:
         self.mouse_monitor.reset()
         self.window_monitor.reset()
         self.notification_monitor.reset()
-        print("✓ All metrics reset")
+        print("All metrics reset")
     
     def get_flow_amplifier(self):
         """Get the flow amplifier instance"""
@@ -376,9 +376,9 @@ def main():
     # Example callback
     def on_flow_state_change(analysis):
         if analysis['in_flow']:
-            print(f"\n🎉 Entered flow state: {analysis['flow_state']}")
+            print(f"\nEntered flow state: {analysis['flow_state']}")
         else:
-            print(f"\n⚠️  Left flow state: {analysis['flow_state']}")
+            print(f"\nLeft flow state: {analysis['flow_state']}")
     
     monitor.add_flow_state_callback(on_flow_state_change)
     
@@ -393,7 +393,7 @@ def main():
         monitor.stop()
         
         # Print final statistics
-        print("\n📊 Session Summary:")
+        print("\nSession Summary:")
         trends = monitor.get_trends(window_minutes=60)
         print(f"   Average Flow Score: {trends['avg_flow_score']}")
         print(f"   Time in Flow: {trends['flow_percentage']:.1f}%")

@@ -85,11 +85,11 @@ class WhitelistController:
                     self.minimized_apps.append(app_name)
                     self.violation_count += 1
             
-            print(f"⛔ Minimized unauthorized app: {app_name}")
+            print(f"Minimized unauthorized app: {app_name}")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not minimize {app_name}: {e}")
+            print(f"Could not minimize {app_name}: {e}")
             return False
     
     def enforce_whitelist(self):
@@ -131,12 +131,12 @@ class WhitelistController:
             return
         
         print("\n" + "="*60)
-        print("🔒 WHITELIST MODE ACTIVATED")
+        print("WHITELIST MODE ACTIVATED")
         print("="*60)
         print("\nAllowed Apps:")
         for app in sorted(self.allowed_apps):
-            print(f"  ✓ {app}")
-        print("\n⚠️  All other apps will be automatically minimized")
+            print(f"  [*] {app}")
+        print("\nAll other apps will be automatically minimized")
         print("="*60 + "\n")
         
         self.running = True
@@ -153,9 +153,9 @@ class WhitelistController:
             self.monitor_thread.join(timeout=3)
         
         print("\n" + "="*60)
-        print("🔓 WHITELIST MODE DEACTIVATED")
+        print("WHITELIST MODE DEACTIVATED")
         print("="*60)
-        print(f"\n📊 Session Statistics:")
+        print(f"\nSession Statistics:")
         print(f"   Violations blocked: {self.violation_count}")
         print(f"   Apps minimized: {len(set(self.minimized_apps))}")
         print("="*60 + "\n")

@@ -67,19 +67,19 @@ class SessionLogger:
         self.app_usage = {}
         self.update_count = 0
         
-        print(f"📝 Session logger initialized")
+        print(f"Session logger initialized")
         print(f"   Log file: {self.log_file}")
     
     def start(self):
         """Start the session logger"""
         if self.running:
-            print("⚠️  Session logger already running")
+            print("Session logger already running")
             return
         
         self.running = True
         self.log_thread = Thread(target=self._log_loop, daemon=True)
         self.log_thread.start()
-        print("✓ Session logger started")
+        print("Session logger started")
     
     def stop(self):
         """Stop the session logger and save final snapshot"""
@@ -100,7 +100,7 @@ class SessionLogger:
         
         # Save final file
         self._save_to_file()
-        print("✓ Session logger stopped")
+        print("Session logger stopped")
     
     def _log_loop(self):
         """Main logging loop"""
@@ -162,7 +162,7 @@ class SessionLogger:
             # Save summary to file
             self._save_to_file()
             
-            print(f"📊 Session updated (update #{self.update_count})")
+            print(f"Session updated (update #{self.update_count})")
             
         except Exception as e:
             print(f"Error saving snapshot: {e}")

@@ -13,6 +13,13 @@ import os
 from .app_scanner import ApplicationScanner
 from .eye_defender import EyeDefender
 
+# Matplotlib imports for graphs
+import matplotlib
+matplotlib.use('TkAgg')
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.pyplot as plt
+
 
 class NotificationGUI:
     """
@@ -36,8 +43,21 @@ class NotificationGUI:
         self.eye_defender = EyeDefender(interval_minutes=20, blur_duration_seconds=20)
         
         self.root = tk.Tk()
-        self.root.title("Prism - Flow State Monitor")
-        self.root.geometry("900x700")
+        self.root.title("PRISM · Flow State Monitor")
+        # Make window resizable - no fixed geometry
+        self.root.minsize(900, 600)
+        # Start with a reasonable default size
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        default_width = min(1100, int(screen_width * 0.8))
+        default_height = min(750, int(screen_height * 0.8))
+        self.root.geometry(f"{default_width}x{default_height}")
+        
+        # Set app icon and window styling (macOS specific)
+        try:
+            self.root.tk.call('::tk::unsupported::MacWindowStyle', 'style', self.root._w, 'document', 'closeBox collapseBox resizable')
+        except:
+            pass
         
         # Configure styles
         self.setup_styles()
@@ -63,139 +83,274 @@ class NotificationGUI:
         
         # Start update loop on main thread using after()
         self.running = True
+        self.stats_update_counter = 0  # Counter for stats updates (every 30s)
         self.schedule_update()
     
     def setup_styles(self):
-        """Configure UI styles"""
+        """Configure UI styles with modern design system"""
         style = ttk.Style()
         style.theme_use('aqua' if 'aqua' in style.theme_names() else 'clam')
         
-        # Custom colors
+        # Modern color palette - Professional and calming
         self.colors = {
-            'DEEP_FLOW': '#FF4500',
-            'FLOW': '#FFA500',
-            'FOCUSED': '#FFD700',
-            'WORKING': '#32CD32',
-            'DISTRACTED': '#808080'
+            'DEEP_FLOW': '#6366F1',      # Indigo - Deep focus
+            'FLOW': '#8B5CF6',            # Purple - Flow state
+            'FOCUSED': '#3B82F6',         # Blue - Focused
+            'WORKING': '#10B981',         # Green - Working
+            'DISTRACTED': '#94A3B8',      # Slate - Distracted
+            'primary': '#6366F1',         # Primary brand color
+            'secondary': '#8B5CF6',       # Secondary accent
+            'success': '#10B981',         # Success green
+            'warning': '#F59E0B',         # Warning amber
+            'danger': '#EF4444',          # Danger red
+            'text_primary': '#1E293B',    # Dark slate
+            'text_secondary': '#64748B',  # Medium slate
+            'bg_primary': '#FFFFFF',      # White
+            'bg_secondary': '#F8FAFC',    # Very light slate
+            'border': '#E2E8F0'           # Light slate
         }
+        
+        # Configure root background
+        self.root.configure(bg=self.colors['bg_secondary'])
+        
+        # Configure custom button styles
+        style.configure('Primary.TButton', 
+                       font=('SF Pro Text', 11, 'bold'),
+                       padding=(20, 10))
+        
+        style.configure('Secondary.TButton',
+                       font=('SF Pro Text', 10),
+                       padding=(15, 8))
+        
+        # Configure label styles
+        style.configure('Title.TLabel',
+                       font=('SF Pro Display', 20, 'bold'),
+                       foreground=self.colors['text_primary'])
+        
+        style.configure('Heading.TLabel',
+                       font=('SF Pro Display', 14, 'bold'),
+                       foreground=self.colors['text_primary'])
+        
+        style.configure('Body.TLabel',
+                       font=('SF Pro Text', 11),
+                       foreground=self.colors['text_secondary'])
+        
+        # Configure frame styles
+        style.configure('Card.TFrame',
+                       background=self.colors['bg_primary'],
+                       relief='flat')
+        
+        style.configure('TLabelframe',
+                       background=self.colors['bg_primary'],
+                       borderwidth=1,
+                       relief='solid')
+        
+        style.configure('TLabelframe.Label',
+                       font=('SF Pro Text', 12, 'bold'),
+                       foreground=self.colors['text_primary'])
     
     def create_ui(self):
-        """Create the user interface"""
-        # Main container
-        main_frame = ttk.Frame(self.root, padding="10")
+        """Create the modern user interface"""
+        # Main container with better padding
+        main_frame = ttk.Frame(self.root, padding="20", style='Card.TFrame')
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Configure grid weights
+        # Configure grid weights for fully responsive layout
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(0, weight=1)
-        main_frame.rowconfigure(2, weight=1)
+        main_frame.rowconfigure(0, weight=0)  # Header stays fixed
+        main_frame.rowconfigure(1, weight=1)  # Main content area expandable
+        main_frame.rowconfigure(2, weight=0)  # Buttons stay fixed
         
-        # === Header: Flow State Status ===
-        status_frame = ttk.LabelFrame(main_frame, text="Flow State Status", padding="10")
-        status_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        status_frame.columnconfigure(1, weight=1)
+        # === Header: Flow State Dashboard ===
+        header_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 15))
+        header_frame.columnconfigure(0, weight=1)
+        header_frame.columnconfigure(1, weight=0)
         
-        # Flow state display
-        ttk.Label(status_frame, text="Current State:").grid(row=0, column=0, sticky=tk.W, padx=5)
-        self.flow_state_label = ttk.Label(status_frame, text="WORKING", font=('Arial', 16, 'bold'))
-        self.flow_state_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+        # Left side - Flow state info
+        flow_info = ttk.Frame(header_frame, style='Card.TFrame')
+        flow_info.grid(row=0, column=0, sticky=(tk.W, tk.E))
+        
+        # Current state with large display
+        state_container = ttk.Frame(flow_info, style='Card.TFrame')
+        state_container.pack(fill=tk.X, pady=(0, 12))
+        
+        ttk.Label(state_container, text="Current State", 
+                 font=('SF Pro Text', 10), 
+                 foreground=self.colors['text_secondary']).pack(anchor=tk.W)
+        
+        self.flow_state_label = ttk.Label(state_container, text="WORKING", 
+                                         font=('SF Pro Display', 28, 'bold'),
+                                         foreground=self.colors['WORKING'])
+        self.flow_state_label.pack(anchor=tk.W)
+        
+        # Flow metrics row
+        metrics_row = ttk.Frame(flow_info, style='Card.TFrame')
+        metrics_row.pack(fill=tk.X)
         
         # Flow score
-        ttk.Label(status_frame, text="Flow Score:").grid(row=1, column=0, sticky=tk.W, padx=5)
-        self.flow_score_label = ttk.Label(status_frame, text="0%", font=('Arial', 14))
-        self.flow_score_label.grid(row=1, column=1, sticky=tk.W, padx=5)
+        score_frame = ttk.Frame(metrics_row, style='Card.TFrame')
+        score_frame.pack(side=tk.LEFT, padx=(0, 30))
         
-        # Progress bar
-        self.flow_progress = ttk.Progressbar(status_frame, length=300, mode='determinate')
-        self.flow_progress.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), padx=5, pady=5)
+        ttk.Label(score_frame, text="Flow Score", 
+                 font=('SF Pro Text', 10),
+                 foreground=self.colors['text_secondary']).pack(anchor=tk.W)
         
-        # Flow duration
-        ttk.Label(status_frame, text="Flow Duration:").grid(row=3, column=0, sticky=tk.W, padx=5)
-        self.duration_label = ttk.Label(status_frame, text="0:00", font=('Arial', 12))
-        self.duration_label.grid(row=3, column=1, sticky=tk.W, padx=5)
+        self.flow_score_label = ttk.Label(score_frame, text="0%", 
+                                         font=('SF Pro Display', 20, 'bold'),
+                                         foreground=self.colors['text_primary'])
+        self.flow_score_label.pack(anchor=tk.W)
         
-        # === Amplification Status ===
-        amp_frame = ttk.LabelFrame(main_frame, text="Amplification Status", padding="10")
-        amp_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        amp_frame.columnconfigure(1, weight=1)
+        # Progress bar (full width, modern style)
+        progress_container = ttk.Frame(flow_info, style='Card.TFrame')
+        progress_container.pack(fill=tk.X, pady=(12, 0))
         
-        # DND status
-        ttk.Label(amp_frame, text="Do Not Disturb:").grid(row=0, column=0, sticky=tk.W, padx=5)
-        self.dnd_status_label = ttk.Label(amp_frame, text="🔕 OFF", font=('Arial', 12))
-        self.dnd_status_label.grid(row=0, column=1, sticky=tk.W, padx=5)
+        self.flow_progress = ttk.Progressbar(progress_container, length=400, mode='determinate')
+        self.flow_progress.pack(fill=tk.X)
         
-        # Suppressed notifications
-        ttk.Label(amp_frame, text="Suppressed Notifications:").grid(row=1, column=0, sticky=tk.W, padx=5)
-        self.suppressed_label = ttk.Label(amp_frame, text="0", font=('Arial', 12))
-        self.suppressed_label.grid(row=1, column=1, sticky=tk.W, padx=5)
+        # Right side - Quick stats
+        stats_panel = ttk.Frame(header_frame, style='Card.TFrame')
+        stats_panel.grid(row=0, column=1, sticky=(tk.N, tk.E), padx=(20, 0))
         
-        # Banished apps
-        ttk.Label(amp_frame, text="Banished Apps:").grid(row=2, column=0, sticky=tk.W, padx=5)
-        self.banished_label = ttk.Label(amp_frame, text="0", font=('Arial', 12))
-        self.banished_label.grid(row=2, column=1, sticky=tk.W, padx=5)
+        # Stats cards in right panel
+        self._create_stat_card(stats_panel, "DND", "OFF", 0)
+        self.dnd_status_label = stats_panel.winfo_children()[0].winfo_children()[1]
         
-        # Whitelist violations
-        ttk.Label(amp_frame, text="Whitelist Violations:").grid(row=3, column=0, sticky=tk.W, padx=5)
-        self.violations_label = ttk.Label(amp_frame, text="N/A", font=('Arial', 12))
-        self.violations_label.grid(row=3, column=1, sticky=tk.W, padx=5)
+        self._create_stat_card(stats_panel, "Suppressed", "0", 1)
+        self.suppressed_label = stats_panel.winfo_children()[1].winfo_children()[1]
         
-        # === Notifications Feed ===
-        notif_frame = ttk.LabelFrame(main_frame, text="Notification Feed", padding="10")
-        notif_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        notif_frame.columnconfigure(0, weight=1)
-        notif_frame.rowconfigure(0, weight=1)
+        self._create_stat_card(stats_panel, "Banished", "0", 2)
+        self.banished_label = stats_panel.winfo_children()[2].winfo_children()[1]
         
-        # Create notebook for tabs
-        notebook = ttk.Notebook(notif_frame)
-        notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self._create_stat_card(stats_panel, "Violations", "N/A", 3)
+        self.violations_label = stats_panel.winfo_children()[3].winfo_children()[1]
+        
+        # === Main Content Area with Tabs ===
+        content_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        content_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        content_frame.columnconfigure(0, weight=1)
+        content_frame.rowconfigure(0, weight=1)
+        main_frame.columnconfigure(0, weight=1)
+        main_frame.rowconfigure(1, weight=1)
+        
+        # Create modern notebook for tabs
+        notebook = ttk.Notebook(content_frame)
+        notebook.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(5, 0))
         
         # Tab 1: All Notifications
-        all_tab = ttk.Frame(notebook)
+        all_tab = ttk.Frame(notebook, style='Card.TFrame')
+        all_tab.columnconfigure(0, weight=1)
+        all_tab.rowconfigure(0, weight=1)
         notebook.add(all_tab, text="All Notifications")
         
-        self.all_notif_text = scrolledtext.ScrolledText(all_tab, wrap=tk.WORD, height=15)
-        self.all_notif_text.pack(fill=tk.BOTH, expand=True)
+        self.all_notif_text = scrolledtext.ScrolledText(all_tab, wrap=tk.WORD, height=15,
+                                                        font=('SF Mono', 10),
+                                                        bg=self.colors['bg_primary'],
+                                                        fg=self.colors['text_primary'],
+                                                        relief='flat',
+                                                        borderwidth=0,
+                                                        padx=12, pady=12)
+        self.all_notif_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.all_notif_text.config(state=tk.DISABLED)
         
         # Tab 2: Suppressed Notifications
-        suppressed_tab = ttk.Frame(notebook)
+        suppressed_tab = ttk.Frame(notebook, style='Card.TFrame')
+        suppressed_tab.columnconfigure(0, weight=1)
+        suppressed_tab.rowconfigure(0, weight=1)
         notebook.add(suppressed_tab, text="Suppressed")
         
-        self.suppressed_text = scrolledtext.ScrolledText(suppressed_tab, wrap=tk.WORD, height=15)
-        self.suppressed_text.pack(fill=tk.BOTH, expand=True)
+        self.suppressed_text = scrolledtext.ScrolledText(suppressed_tab, wrap=tk.WORD, height=15,
+                                                         font=('SF Mono', 10),
+                                                         bg=self.colors['bg_primary'],
+                                                         fg=self.colors['text_primary'],
+                                                         relief='flat',
+                                                         borderwidth=0,
+                                                         padx=12, pady=12)
+        self.suppressed_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.suppressed_text.config(state=tk.DISABLED)
         
         # Tab 3: Metrics
-        metrics_tab = ttk.Frame(notebook)
+        metrics_tab = ttk.Frame(notebook, style='Card.TFrame')
+        metrics_tab.columnconfigure(0, weight=1)
+        metrics_tab.rowconfigure(0, weight=1)
         notebook.add(metrics_tab, text="Metrics")
         
-        self.metrics_text = scrolledtext.ScrolledText(metrics_tab, wrap=tk.WORD, height=15)
-        self.metrics_text.pack(fill=tk.BOTH, expand=True)
+        self.metrics_text = scrolledtext.ScrolledText(metrics_tab, wrap=tk.WORD, height=15,
+                                                      font=('SF Mono', 10),
+                                                      bg=self.colors['bg_primary'],
+                                                      fg=self.colors['text_primary'],
+                                                      relief='flat',
+                                                      borderwidth=0,
+                                                      padx=12, pady=12)
+        self.metrics_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         self.metrics_text.config(state=tk.DISABLED)
         
         # Tab 4: App Management
-        apps_tab = ttk.Frame(notebook)
+        apps_tab = ttk.Frame(notebook, style='Card.TFrame')
+        apps_tab.columnconfigure(0, weight=1)
+        apps_tab.rowconfigure(0, weight=1)
         notebook.add(apps_tab, text="App Settings")
         self.create_app_management_tab(apps_tab)
         
         # Tab 5: Eye Defender
-        eye_tab = ttk.Frame(notebook)
-        notebook.add(eye_tab, text="👁️ Eye Defender")
+        eye_tab = ttk.Frame(notebook, style='Card.TFrame')
+        eye_tab.columnconfigure(0, weight=1)
+        eye_tab.rowconfigure(0, weight=1)
+        notebook.add(eye_tab, text="Eye Defender")
         self.create_eye_defender_tab(eye_tab)
         
         # Tab 6: Mood Monitor
-        mood_tab = ttk.Frame(notebook)
-        notebook.add(mood_tab, text="🎭 Mood Monitor")
+        mood_tab = ttk.Frame(notebook, style='Card.TFrame')
+        mood_tab.columnconfigure(0, weight=1)
+        mood_tab.rowconfigure(0, weight=1)
+        notebook.add(mood_tab, text="Mood Monitor")
         self.create_mood_monitor_tab(mood_tab)
         
-        # === Control Buttons ===
-        button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        # Tab 7: Session Stats
+        stats_tab = ttk.Frame(notebook, style='Card.TFrame')
+        stats_tab.columnconfigure(0, weight=1)
+        stats_tab.rowconfigure(0, weight=1)
+        notebook.add(stats_tab, text="Session Stats")
+        self.create_session_stats_tab(stats_tab)
         
-        ttk.Button(button_frame, text="Reset Metrics", command=self.reset_metrics).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="View Trends", command=self.show_trends).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="Exit", command=self.quit_app).pack(side=tk.RIGHT, padx=5)
+        # Tab 8: AI Recommendations
+        ai_tab = ttk.Frame(notebook, style='Card.TFrame')
+        ai_tab.columnconfigure(0, weight=1)
+        ai_tab.rowconfigure(0, weight=1)
+        notebook.add(ai_tab, text="AI Recommendations")
+        self.create_ai_recommendations_tab(ai_tab)
+        
+        # === Control Buttons (Modern styled) ===
+        button_frame = ttk.Frame(main_frame, style='Card.TFrame')
+        button_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(15, 0))
+        
+        ttk.Button(button_frame, text="Reset Metrics", 
+                  command=self.reset_metrics,
+                  style='Secondary.TButton').pack(side=tk.LEFT, padx=(0, 8))
+        
+        ttk.Button(button_frame, text="View Trends", 
+                  command=self.show_trends,
+                  style='Secondary.TButton').pack(side=tk.LEFT, padx=(0, 8))
+        
+        ttk.Button(button_frame, text="Exit", 
+                  command=self.quit_app,
+                  style='Secondary.TButton').pack(side=tk.RIGHT)
+    
+    def _create_stat_card(self, parent, label, value, row):
+        """Create a modern stat card"""
+        card = ttk.Frame(parent, style='Card.TFrame')
+        card.pack(fill=tk.X, pady=4)
+        
+        ttk.Label(card, text=label,
+                 font=('SF Pro Text', 9),
+                 foreground=self.colors['text_secondary']).pack(anchor=tk.W)
+        
+        value_label = ttk.Label(card, text=value,
+                               font=('SF Pro Display', 16, 'bold'),
+                               foreground=self.colors['text_primary'])
+        value_label.pack(anchor=tk.W)
     
     def create_app_management_tab(self, parent):
         """Create the app management interface"""
@@ -206,7 +361,7 @@ class NotificationGUI:
         parent.rowconfigure(3, weight=1)  # Distraction Apps
         
         # === Whitelist Mode Toggle ===
-        whitelist_control_frame = ttk.LabelFrame(parent, text="🔒 Whitelist Mode - Ultimate Focus", padding="10")
+        whitelist_control_frame = ttk.LabelFrame(parent, text="Whitelist Mode - Ultimate Focus", padding="10")
         whitelist_control_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=5, pady=5)
         
         # Description
@@ -231,11 +386,8 @@ class NotificationGUI:
         self.whitelist_status_label.grid(row=2, column=0, sticky=tk.W, pady=(5, 0))
         
         # === Allowed Apps Section (Full Width) - For Whitelist Mode ===
-        allowed_frame = ttk.LabelFrame(parent, text="✅ Allowed Apps - Whitelist Mode", padding="10")
+        allowed_frame = ttk.LabelFrame(parent, text="Allowed Apps - Whitelist Mode", padding="10")
         allowed_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
-        allowed_frame.columnconfigure(0, weight=1)
-        allowed_frame.rowconfigure(3, weight=1)
-        allowed_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 5), pady=0)
         allowed_frame.columnconfigure(0, weight=1)
         allowed_frame.rowconfigure(3, weight=1)
         
@@ -296,84 +448,6 @@ class NotificationGUI:
         ttk.Button(button_frame_allowed, text="Select All", 
                   command=lambda: self.allowed_apps_listbox.select_set(0, tk.END)).grid(row=0, column=1, sticky=(tk.W, tk.E))
         
-        # === Protected Apps Section (Full Width) - For Flow Mode ===
-        protected_frame = ttk.LabelFrame(parent, text="🛡️ Protected Apps (Flow Mode)", padding="10")
-        protected_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
-        protected_frame.columnconfigure(0, weight=1)
-        protected_frame.rowconfigure(2, weight=1)
-        
-        # Note label
-        note_label = ttk.Label(protected_frame, text="Work apps never minimized during flow (e.g., VS Code, Terminal)", 
-                              font=('Arial', 9), foreground='#666', wraplength=350)
-        note_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
-        
-        # Input for new protected app
-        input_frame_protected = ttk.Frame(protected_frame)
-        input_frame_protected.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
-        input_frame_protected.columnconfigure(0, weight=1)
-        
-        self.protected_app_entry = ttk.Entry(input_frame_protected)
-        self.protected_app_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        self.protected_app_entry.bind('<Return>', lambda e: self.add_protected_app())
-        
-        ttk.Button(input_frame_protected, text="Add", command=self.add_protected_app).grid(row=0, column=1)
-        
-        # Listbox for protected apps
-        list_frame_protected = ttk.Frame(protected_frame)
-        list_frame_protected.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        list_frame_protected.columnconfigure(0, weight=1)
-        list_frame_protected.rowconfigure(0, weight=1)
-        
-        scrollbar_protected = ttk.Scrollbar(list_frame_protected)
-        scrollbar_protected.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
-        self.protected_apps_listbox = tk.Listbox(list_frame_protected, yscrollcommand=scrollbar_protected.set)
-        self.protected_apps_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar_protected.config(command=self.protected_apps_listbox.yview)
-        
-        # Remove button for protected apps
-        ttk.Button(protected_frame, text="Remove Selected", 
-                  command=self.remove_protected_app).grid(row=3, column=0, pady=(5, 0))
-        
-        # === Distraction Apps Section (Full Width) ===
-        distraction_frame = ttk.LabelFrame(parent, text="🚫 Distraction Apps (Flow Mode)", padding="10")
-        distraction_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=5, pady=5)
-        distraction_frame.columnconfigure(0, weight=1)
-        distraction_frame.rowconfigure(2, weight=1)
-        
-        # Note label
-        distraction_note = ttk.Label(distraction_frame, text="Apps that will be minimized during flow amplification (e.g., Slack, Twitter, Discord)", 
-                              font=('Arial', 9), foreground='#666', wraplength=700)
-        distraction_note.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
-        
-        # Input for new distraction app
-        input_frame_distraction = ttk.Frame(distraction_frame)
-        input_frame_distraction.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 5))
-        input_frame_distraction.columnconfigure(0, weight=1)
-        
-        self.distraction_app_entry = ttk.Entry(input_frame_distraction)
-        self.distraction_app_entry.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        self.distraction_app_entry.bind('<Return>', lambda e: self.add_distraction_app())
-        
-        ttk.Button(input_frame_distraction, text="Add", command=self.add_distraction_app).grid(row=0, column=1)
-        
-        # Listbox for distraction apps
-        list_frame_distraction = ttk.Frame(distraction_frame)
-        list_frame_distraction.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        list_frame_distraction.columnconfigure(0, weight=1)
-        list_frame_distraction.rowconfigure(0, weight=1)
-        
-        scrollbar_distraction = ttk.Scrollbar(list_frame_distraction)
-        scrollbar_distraction.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        
-        self.distraction_apps_listbox = tk.Listbox(list_frame_distraction, yscrollcommand=scrollbar_distraction.set)
-        self.distraction_apps_listbox.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        scrollbar_distraction.config(command=self.distraction_apps_listbox.yview)
-        
-        # Remove button for distraction apps
-        ttk.Button(distraction_frame, text="Remove Selected", 
-                  command=self.remove_distraction_app).grid(row=3, column=0, pady=(5, 0))
-        
         # Load current apps
         self.load_app_lists()
     
@@ -384,7 +458,7 @@ class NotificationGUI:
         parent.rowconfigure(2, weight=1)
         
         # === Eye Defender Header ===
-        header_frame = ttk.LabelFrame(parent, text="👁️ Eye Defender - 20-20-20 Rule", padding="15")
+        header_frame = ttk.LabelFrame(parent, text="Eye Defender - 20-20-20 Rule", padding="15")
         header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         
         desc_text = (
@@ -395,12 +469,12 @@ class NotificationGUI:
         ttk.Label(header_frame, text=desc_text, foreground='#666', wraplength=800).grid(row=0, column=0, sticky=tk.W)
         
         # === Settings Frame ===
-        settings_frame = ttk.LabelFrame(parent, text="⚙️ Timer Settings (Changes Apply Immediately)", padding="15")
+        settings_frame = ttk.LabelFrame(parent, text="Timer Settings (Changes Apply Immediately)", padding="15")
         settings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         settings_frame.columnconfigure(1, weight=1)
         
         # Help text
-        help_text = "⚡ Adjust sliders anytime - settings update instantly, even while Eye Defender is running!"
+        help_text = "Adjust sliders anytime - settings update instantly, even while Eye Defender is running!"
         ttk.Label(settings_frame, text=help_text, foreground='#2196F3', font=('Arial', 9), wraplength=800).grid(
             row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
         
@@ -434,7 +508,7 @@ class NotificationGUI:
         self.duration_label.pack(side=tk.RIGHT)
         
         # === Control Frame ===
-        control_frame = ttk.LabelFrame(parent, text="🎮 Controls", padding="15")
+        control_frame = ttk.LabelFrame(parent, text="Controls", padding="15")
         control_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N), padx=10, pady=10)
         
         # Status display
@@ -471,19 +545,19 @@ class NotificationGUI:
         button_frame = ttk.Frame(control_frame)
         button_frame.pack(fill=tk.X)
         
-        self.eye_start_btn = ttk.Button(button_frame, text="▶️ Start Eye Defender", 
+        self.eye_start_btn = ttk.Button(button_frame, text="Start Eye Defender", 
                                        command=self.start_eye_defender, style='Accent.TButton')
         self.eye_start_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        self.eye_stop_btn = ttk.Button(button_frame, text="⏹️ Stop", 
+        self.eye_stop_btn = ttk.Button(button_frame, text="Stop", 
                                       command=self.stop_eye_defender, state=tk.DISABLED)
         self.eye_stop_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        self.eye_pause_btn = ttk.Button(button_frame, text="⏸️ Pause", 
+        self.eye_pause_btn = ttk.Button(button_frame, text="Pause", 
                                        command=self.pause_eye_defender, state=tk.DISABLED)
         self.eye_pause_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        ttk.Button(button_frame, text="👁️ Take Break Now", 
+        ttk.Button(button_frame, text="Take Break Now", 
                   command=self.manual_eye_break).pack(side=tk.LEFT)
     
     def setup_ai_assistant_callbacks(self):
@@ -500,7 +574,7 @@ class NotificationGUI:
             ai_assistant.register_callback('enable_do_not_disturb', self.enable_dnd_mode)
             ai_assistant.register_callback('suggest_break', self.show_break_suggestion)
             ai_assistant.register_callback('provide_encouragement', self.show_encouragement_message)
-            print("✓ AI assistant callbacks registered")
+            print("AI assistant callbacks registered")
     
     def _initialize_eye_defender_from_gui(self):
         """Initialize Eye Defender with current slider values (silent, no auto-start)"""
@@ -510,7 +584,7 @@ class NotificationGUI:
         with self.eye_defender.lock:
             self.eye_defender.interval_minutes = float(interval_minutes)
             self.eye_defender.blur_duration_seconds = int(duration_seconds)
-        print(f"👁️  Eye Defender configured: {interval_minutes} min interval, {duration_seconds} sec breaks")
+        print(f"Eye Defender configured: {interval_minutes} min interval, {duration_seconds} sec breaks")
     
     def update_eye_defender_interval(self, value):
         """Update interval label and eye defender setting"""
@@ -539,10 +613,10 @@ class NotificationGUI:
         
         # Show feedback ONLY if Eye Defender was already running
         if was_running and not settings['is_paused']:
-            self.eye_status_label.config(text="⚡ Timer Restarted", foreground='#FF9800')
-            print(f"⚙️  Eye Defender interval changed to {minutes:.1f} minutes (timer restarted)")
+            self.eye_status_label.config(text="Timer Restarted", foreground='#FF9800')
+            print(f"Eye Defender interval changed to {minutes:.1f} minutes (timer restarted)")
             # Reset label after 2 seconds
-            self.root.after(2000, lambda: self.eye_status_label.config(text="Active ✓", foreground='green'))
+            self.root.after(2000, lambda: self.eye_status_label.config(text="Active", foreground='green'))
     
     def update_eye_defender_duration(self, value):
         """Update duration label and eye defender setting"""
@@ -556,21 +630,21 @@ class NotificationGUI:
         # Show feedback ONLY if Eye Defender is currently running
         settings = self.eye_defender.get_settings()
         if settings['is_running'] and not settings['is_paused']:
-            print(f"⚙️  Eye Defender break duration changed to {seconds} seconds")
+            print(f"Eye Defender break duration changed to {seconds} seconds")
     
     def start_eye_defender(self):
         """Start the eye defender"""
         # Safety check - don't start if already running
         if self.eye_defender.get_settings()['is_running']:
-            print("⚠️  Eye Defender is already running")
+            print("Eye Defender is already running")
             return
         
         # Get current settings
         settings = self.eye_defender.get_settings()
-        print(f"▶️  Starting Eye Defender with {settings['interval_minutes']} min interval, {settings['blur_duration_seconds']} sec breaks...")
+        print(f"Starting Eye Defender with {settings['interval_minutes']} min interval, {settings['blur_duration_seconds']} sec breaks...")
         
         self.eye_defender.start()
-        self.eye_status_label.config(text="Active ✓", foreground='green')
+        self.eye_status_label.config(text="Active", foreground='green')
         self.eye_start_btn.config(state=tk.DISABLED)
         self.eye_stop_btn.config(state=tk.NORMAL)
         self.eye_pause_btn.config(state=tk.NORMAL)
@@ -581,19 +655,19 @@ class NotificationGUI:
         self.eye_status_label.config(text="Disabled", foreground='gray')
         self.eye_start_btn.config(state=tk.NORMAL)
         self.eye_stop_btn.config(state=tk.DISABLED)
-        self.eye_pause_btn.config(state=tk.DISABLED, text="⏸️ Pause")
-        print("✓ Eye Defender stopped")
+        self.eye_pause_btn.config(state=tk.DISABLED, text="Pause")
+        print("Eye Defender stopped")
     
     def pause_eye_defender(self):
         """Pause/resume the eye defender"""
         settings = self.eye_defender.get_settings()
         if settings['is_paused']:
             self.eye_defender.resume()
-            self.eye_pause_btn.config(text="⏸️ Pause")
-            self.eye_status_label.config(text="Active ✓", foreground='green')
+            self.eye_pause_btn.config(text="Pause")
+            self.eye_status_label.config(text="Active", foreground='green')
         else:
             self.eye_defender.pause()
-            self.eye_pause_btn.config(text="▶️ Resume")
+            self.eye_pause_btn.config(text="Resume")
             self.eye_status_label.config(text="Paused", foreground='orange')
     
     def manual_eye_break(self):
@@ -627,15 +701,15 @@ class NotificationGUI:
                         pygame.mixer.init()
                         pygame.mixer.music.load(music_path)
                         pygame.mixer.music.play()
-                        print(f"🎵 Playing calm music for {blur_duration} seconds...")
+                        print(f"Playing calm music for {blur_duration} seconds...")
                     except ImportError:
                         # Fallback to afplay on macOS
                         music_process = subprocess.Popen(['afplay', music_path])
-                        print(f"🎵 Playing calm music (afplay) for {blur_duration} seconds...")
+                        print(f"Playing calm music (afplay) for {blur_duration} seconds...")
                 except Exception as e:
-                    print(f"⚠️  Could not play music: {e}")
+                    print(f"Could not play music: {e}")
             else:
-                print(f"⚠️  Music file not found: {music_path}")
+                print(f"Music file not found: {music_path}")
             
             # Create blur overlay window
             blur_window = tk.Toplevel(self.root)
@@ -658,7 +732,7 @@ class NotificationGUI:
             message_frame.pack()
             
             title_label = tk.Label(message_frame, 
-                                  text="👁️ Eye Break Time!", 
+                                  text="Eye Break Time!", 
                                   font=('Arial', 36, 'bold'),
                                   fg='#4CAF50',
                                   bg='#1e1e1e')
@@ -721,7 +795,7 @@ class NotificationGUI:
                     if music_process and music_process.poll() is None:
                         music_process.terminate()
                 except Exception as e:
-                    print(f"⚠️  Error stopping music: {e}")
+                    print(f"Error stopping music: {e}")
             
             def fade_out():
                 """Gradually fade out and transition to breathing exercise"""
@@ -752,7 +826,7 @@ class NotificationGUI:
             # Play sound notification
             sound_script = f'''
             display notification "Look 20 feet away for {blur_duration} seconds" ¬
-                with title "👁️ Eye Break Time!" ¬
+                with title "Eye Break Time!" ¬
                 sound name "Glass"
             '''
             subprocess.Popen(['osascript', '-e', sound_script], 
@@ -760,7 +834,7 @@ class NotificationGUI:
                            stderr=subprocess.DEVNULL)
             
         except Exception as e:
-            print(f"⚠️  Error showing eye break overlay: {e}")
+            print(f"Error showing eye break overlay: {e}")
     
     def show_breathing_exercise(self, parent_window):
         """Show interactive breathing exercise game after eye break"""
@@ -812,60 +886,60 @@ class NotificationGUI:
                 star = canvas.create_oval(x, y, x+size, y+size, fill=color, outline='')
                 state['stars'].append({'id': star, 'x': x, 'y': y, 'brightness': brightness})
             
-            # UI Elements
-            title = canvas.create_text(center_x, 80, text="🫁 Breathing Meditation", 
-                                      font=('Arial', 48, 'bold'), fill='#00d4ff')
+            # UI Elements with modern styling
+            title = canvas.create_text(center_x, 80, text="Breathing Meditation", 
+                                      font=('SF Pro Display', 48, 'bold'), fill='#6366F1')
             
             instruction = canvas.create_text(center_x, center_y + 280, text="Get Ready...", 
-                                           font=('Arial', 36, 'bold'), fill='#ffffff')
+                                           font=('SF Pro Text', 36, 'bold'), fill='#ffffff')
             
             timer_text = canvas.create_text(center_x, center_y, text="", 
-                                          font=('Arial', 72, 'bold'), fill='#ffffff')
+                                          font=('SF Pro Display', 72, 'bold'), fill='#ffffff')
             
             counter = canvas.create_text(center_x, 150, text=f"Round {state['round']} of {state['total_rounds']}", 
-                                       font=('Arial', 24), fill='#888888')
+                                       font=('SF Pro Text', 24), fill='#94A3B8')
             
             score_text = canvas.create_text(center_x, center_y + 350, text="", 
-                                          font=('Arial', 20), fill='#FFD700')
+                                          font=('SF Pro Text', 20), fill='#10B981')
             
             hint = canvas.create_text(center_x, screen_height - 50, 
                                     text="Press ESC to skip", 
-                                    font=('Arial', 16), fill='#666666')
+                                    font=('SF Pro Text', 16), fill='#64748B')
             
-            # Phase configurations
+            # Phase configurations with modern color palette
             phases = {
                 'inhale': {
                     'duration': 4,
-                    'text': '🌬️ Breathe In',
-                    'color': '#4CAF50',
-                    'gradient': ['#4CAF50', '#81C784', '#A5D6A7'],
+                    'text': 'Breathe In',
+                    'color': '#10B981',  # Success green
+                    'gradient': ['#10B981', '#34D399', '#6EE7B7'],
                     'next': 'hold_in',
                     'min_size': 80,
                     'max_size': 200
                 },
                 'hold_in': {
                     'duration': 4,
-                    'text': '⏸️ Hold',
-                    'color': '#FFC107',
-                    'gradient': ['#FFC107', '#FFD54F', '#FFE082'],
+                    'text': 'Hold',
+                    'color': '#F59E0B',  # Warning amber
+                    'gradient': ['#F59E0B', '#FBBF24', '#FCD34D'],
                     'next': 'exhale',
                     'min_size': 200,
                     'max_size': 200
                 },
                 'exhale': {
                     'duration': 6,
-                    'text': '🌊 Breathe Out',
-                    'color': '#2196F3',
-                    'gradient': ['#2196F3', '#64B5F6', '#90CAF9'],
+                    'text': 'Breathe Out',
+                    'color': '#3B82F6',  # Blue
+                    'gradient': ['#3B82F6', '#60A5FA', '#93C5FD'],
                     'next': 'hold_out',
                     'min_size': 200,
                     'max_size': 80
                 },
                 'hold_out': {
                     'duration': 2,
-                    'text': '⏸️ Rest',
-                    'color': '#9C27B0',
-                    'gradient': ['#9C27B0', '#BA68C8', '#CE93D8'],
+                    'text': 'Rest',
+                    'color': '#8B5CF6',  # Purple
+                    'gradient': ['#8B5CF6', '#A78BFA', '#C4B5FD'],
                     'next': 'inhale',
                     'min_size': 80,
                     'max_size': 80
@@ -950,7 +1024,7 @@ class NotificationGUI:
             def start_exercise():
                 """Start the breathing exercise"""
                 play_sound('start')
-                canvas.itemconfig(instruction, text="✨ Begin", fill='#4CAF50')
+                canvas.itemconfig(instruction, text="Begin", fill='#4CAF50')
                 parent_window.after(1500, lambda: animate_phase('inhale'))
             
             def animate_phase(phase_name):
@@ -1057,7 +1131,7 @@ class NotificationGUI:
                 play_sound('complete')
                 
                 canvas.delete('breath_circle')
-                canvas.itemconfig(instruction, text="🎉 Excellent!", fill='#4CAF50')
+                canvas.itemconfig(instruction, text="Excellent!", fill='#4CAF50')
                 canvas.itemconfig(timer_text, text='', fill='#4CAF50')
                 
                 # Final message
@@ -1082,13 +1156,13 @@ class NotificationGUI:
                     parent_window.after(30, fade_out_and_close)
                 else:
                     parent_window.destroy()
-                    print("✓ Breathing exercise completed")
+                    print("Breathing exercise completed")
             
             def skip_exercise(event=None):
                 """Skip the exercise"""
                 state['running'] = False
                 parent_window.destroy()
-                print("⏭️  Breathing exercise skipped")
+                print("Breathing exercise skipped")
             
             # Bind keys
             parent_window.bind('<Escape>', skip_exercise)
@@ -1098,10 +1172,10 @@ class NotificationGUI:
             twinkle_stars()
             parent_window.after(1000, start_exercise)
             
-            print("🫁 Starting interactive breathing exercise...")
+            print("Starting interactive breathing exercise...")
             
         except Exception as e:
-            print(f"⚠️  Error showing breathing exercise: {e}")
+            print(f"Error showing breathing exercise: {e}")
             import traceback
             traceback.print_exc()
             parent_window.destroy()
@@ -1109,13 +1183,13 @@ class NotificationGUI:
     def create_mood_monitor_tab(self, parent):
         """Create the mood monitoring interface"""
         parent.columnconfigure(0, weight=1)
-        parent.rowconfigure(3, weight=1)
+        parent.rowconfigure(2, weight=1)
         
         # === Header ===
         header_frame = ttk.Frame(parent)
         header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         
-        title_label = ttk.Label(header_frame, text="🎭 Emotion Detection", 
+        title_label = ttk.Label(header_frame, text="Emotion Detection", 
                                font=('Arial', 14, 'bold'))
         title_label.pack(side=tk.LEFT)
         
@@ -1141,20 +1215,20 @@ class NotificationGUI:
         button_frame = ttk.Frame(control_frame)
         button_frame.pack(fill=tk.X)
         
-        self.mood_start_btn = ttk.Button(button_frame, text="▶️ Start Monitoring", 
+        self.mood_start_btn = ttk.Button(button_frame, text="Start Monitoring", 
                                         command=self.start_mood_monitor, style='Accent.TButton')
         self.mood_start_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        self.mood_stop_btn = ttk.Button(button_frame, text="⏹️ Stop", 
+        self.mood_stop_btn = ttk.Button(button_frame, text="Stop", 
                                        command=self.stop_mood_monitor, state=tk.DISABLED)
         self.mood_stop_btn.pack(side=tk.LEFT, padx=(0, 10))
         
-        ttk.Button(button_frame, text="🔄 Reset Stats", 
+        ttk.Button(button_frame, text="Reset Stats", 
                   command=self.reset_mood_stats).pack(side=tk.LEFT)
         
         # === Current Emotion Display ===
         emotion_frame = ttk.LabelFrame(parent, text="Current Mood Status", padding="15")
-        emotion_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), padx=10, pady=(0, 10))
+        emotion_frame.grid(row=2, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=(0, 10))
         
         self.current_emotion_label = ttk.Label(emotion_frame, text="No mood detected yet", 
                                               font=('Arial', 16, 'bold'), wraplength=600)
@@ -1163,33 +1237,661 @@ class NotificationGUI:
         self.mood_alert_label = ttk.Label(emotion_frame, text="", 
                                          font=('Arial', 14), foreground='#FF6B6B', wraplength=600)
         self.mood_alert_label.pack(pady=(5, 5))
-        
-        # === Statistics Display ===
-        stats_frame = ttk.LabelFrame(parent, text="Statistics", padding="10")
-        stats_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=(0, 10))
-        stats_frame.columnconfigure(0, weight=1)
-        stats_frame.rowconfigure(0, weight=1)
-        
-        self.mood_stats_text = scrolledtext.ScrolledText(stats_frame, wrap=tk.WORD, height=12, font=('Arial', 10))
-        self.mood_stats_text.pack(fill=tk.BOTH, expand=True)
-        self.mood_stats_text.config(state=tk.DISABLED)
-        
-        # Initialize with helpful message
-        initial_msg = ("📊 Mood Monitor Ready\n\n"
-                      "Click 'Start Monitoring' to begin real-time emotion detection.\n\n"
-                      "The system will:\n"
-                      "• Analyze your facial expressions every 5 seconds\n"
-                      "• Track 7 different emotions\n"
-                      "• Display statistics and trends here\n\n"
-                      "Make sure your webcam is accessible and you're in good lighting.")
-        self._update_mood_stats_display(initial_msg)
     
-    def _update_mood_stats_display(self, text):
-        """Update mood statistics text display"""
-        self.mood_stats_text.config(state=tk.NORMAL)
-        self.mood_stats_text.delete(1.0, tk.END)
-        self.mood_stats_text.insert(tk.END, text)
-        self.mood_stats_text.config(state=tk.DISABLED)
+    def create_session_stats_tab(self, parent):
+        """Create the session statistics interface with graphs and metrics"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(1, weight=1)
+        
+        # Create main container with canvas for graphs
+        main_container = ttk.Frame(parent, style='Card.TFrame')
+        main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        main_container.columnconfigure(0, weight=1)
+        main_container.rowconfigure(1, weight=1)
+        
+        # Header section
+        header_frame = ttk.Frame(main_container, style='Card.TFrame')
+        header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        
+        ttk.Label(header_frame, text="Session Statistics", 
+                 style='Title.TLabel').pack(side=tk.LEFT, padx=(5, 0))
+        
+        # Create canvas with scrollbar for graphs
+        canvas_frame = ttk.Frame(main_container)
+        canvas_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        canvas_frame.columnconfigure(0, weight=1)
+        canvas_frame.rowconfigure(0, weight=1)
+        
+        self.stats_canvas = tk.Canvas(canvas_frame, bg=self.colors['bg_primary'], 
+                                      highlightthickness=0)
+        stats_scrollbar = ttk.Scrollbar(canvas_frame, orient="vertical", 
+                                       command=self.stats_canvas.yview)
+        
+        self.stats_scrollable_frame = ttk.Frame(self.stats_canvas, style='Card.TFrame')
+        self.stats_scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.stats_canvas.configure(scrollregion=self.stats_canvas.bbox("all"))
+        )
+        
+        self.stats_canvas.create_window((0, 0), window=self.stats_scrollable_frame, anchor="nw")
+        self.stats_canvas.configure(yscrollcommand=stats_scrollbar.set)
+        
+        self.stats_canvas.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        stats_scrollbar.grid(row=0, column=1, sticky=(tk.N, tk.S))
+        
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            self.stats_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        
+        def _bind_mousewheel(event):
+            self.stats_canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        def _unbind_mousewheel(event):
+            self.stats_canvas.unbind_all("<MouseWheel>")
+        
+        self.stats_canvas.bind("<Enter>", _bind_mousewheel)
+        self.stats_canvas.bind("<Leave>", _unbind_mousewheel)
+        
+        # Initialize graphs
+        self._setup_stats_graphs()
+        
+        # Initialize with empty state
+        self._update_session_stats_with_graphs()
+    
+    def _setup_stats_graphs(self):
+        """Setup matplotlib figure containers for graphs"""
+        # Store canvas widgets for later updates
+        self.stats_graph_canvases = []
+        
+    def _update_session_stats_with_graphs(self):
+        """Update session statistics with visual graphs"""
+        try:
+            import glob
+            
+            # Clear existing graphs
+            for widget in self.stats_scrollable_frame.winfo_children():
+                widget.destroy()
+            self.stats_graph_canvases.clear()
+            
+            # Get session data
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logs_dir = os.path.join(os.path.dirname(backend_dir), 'session_logs')
+            
+            session_files = glob.glob(os.path.join(logs_dir, 'session_*.json'))
+            if not session_files:
+                no_data_label = ttk.Label(
+                    self.stats_scrollable_frame,
+                    text="No session data available yet.\nStart monitoring to generate statistics.",
+                    font=('SF Pro Text', 12),
+                    foreground=self.colors['text_secondary']
+                )
+                no_data_label.pack(pady=50)
+                return
+            
+            # Load the most recent session
+            latest_session = max(session_files, key=os.path.getmtime)
+            with open(latest_session, 'r') as f:
+                data = json.load(f)
+            
+            summary = data.get('summary', {})
+            
+            # Create summary cards at top
+            self._create_summary_cards(summary)
+            
+            # Create graphs
+            self._create_flow_state_graph(summary)
+            self._create_mood_analysis_graph(summary)
+            self._create_activity_metrics_graph(summary)
+            self._create_app_usage_graph(summary)
+            
+        except Exception as e:
+            print(f"Error updating session stats with graphs: {e}")
+            import traceback
+            traceback.print_exc()
+            error_label = ttk.Label(
+                self.stats_scrollable_frame,
+                text=f"Error loading session data: {str(e)}",
+                font=('SF Pro Text', 11),
+                foreground='#EF4444'
+            )
+            error_label.pack(pady=20)
+    
+    def _create_summary_cards(self, summary):
+        """Create summary statistic cards"""
+        cards_frame = ttk.Frame(self.stats_scrollable_frame, style='Card.TFrame')
+        cards_frame.pack(fill=tk.X, padx=20, pady=15)
+        
+        session_info = summary.get('session_info', {})
+        flow_analysis = summary.get('flow_state_analysis', {})
+        
+        duration_min = session_info.get('duration_minutes', 0)
+        avg_flow = flow_analysis.get('avg_flow_score', 0)
+        productivity = flow_analysis.get('productivity_score', 0)
+        total_updates = session_info.get('total_updates', 0)
+        
+        # Create 4 summary cards
+        cards_data = [
+            ("Session Duration", f"{duration_min:.1f} min", self.colors['primary']),
+            ("Avg Flow Score", f"{avg_flow:.1f}%", self.colors['secondary']),
+            ("Productivity", f"{productivity:.1f}%", self.colors['success']),
+            ("Data Points", f"{total_updates}", self.colors['FOCUSED'])
+        ]
+        
+        for i, (title, value, color) in enumerate(cards_data):
+            card = ttk.Frame(cards_frame, style='Card.TFrame', relief='solid', borderwidth=1)
+            card.grid(row=0, column=i, padx=8, sticky=(tk.W, tk.E))
+            cards_frame.columnconfigure(i, weight=1)
+            
+            ttk.Label(card, text=title, font=('SF Pro Text', 9),
+                     foreground=self.colors['text_secondary']).pack(pady=(10, 2))
+            ttk.Label(card, text=value, font=('SF Pro Display', 18, 'bold'),
+                     foreground=color).pack(pady=(0, 10))
+    
+    def _create_flow_state_graph(self, summary):
+        """Create flow state analysis graphs"""
+        section_frame = ttk.Frame(self.stats_scrollable_frame, style='Card.TFrame')
+        section_frame.pack(fill=tk.BOTH, padx=20, pady=10)
+        
+        ttk.Label(section_frame, text="Flow State Analysis", 
+                 style='Heading.TLabel').pack(anchor='w', padx=10, pady=(10, 5))
+        
+        flow_analysis = summary.get('flow_state_analysis', {})
+        state_pct = flow_analysis.get('state_percentages', {})
+        
+        if not state_pct:
+            ttk.Label(section_frame, text="No flow state data available",
+                     foreground=self.colors['text_secondary']).pack(pady=20)
+            return
+        
+        # Create figure with 2 subplots
+        fig = Figure(figsize=(10, 5), facecolor=self.colors['bg_primary'])
+        
+        # Pie chart for state distribution
+        ax1 = fig.add_subplot(121)
+        colors_map = {
+            'DEEP_FLOW': '#6366F1',
+            'FLOW': '#8B5CF6',
+            'FOCUSED': '#3B82F6',
+            'WORKING': '#10B981',
+            'DISTRACTED': '#94A3B8'
+        }
+        colors = [colors_map.get(state, '#94A3B8') for state in state_pct.keys()]
+        ax1.pie(state_pct.values(), labels=state_pct.keys(), autopct='%1.1f%%',
+               colors=colors, startangle=90, textprops={'fontsize': 9})
+        ax1.set_title('State Distribution', fontsize=11, pad=10)
+        
+        # Bar chart for flow metrics
+        ax2 = fig.add_subplot(122)
+        metrics = {
+            'Avg Flow': flow_analysis.get('avg_flow_score', 0),
+            'Max Flow': flow_analysis.get('max_flow_score', 0),
+            'Min Flow': flow_analysis.get('min_flow_score', 0),
+            'Productivity': flow_analysis.get('productivity_score', 0)
+        }
+        bars = ax2.bar(metrics.keys(), metrics.values(), 
+                      color=[self.colors['primary'], self.colors['success'], 
+                            self.colors['warning'], self.colors['secondary']])
+        ax2.set_ylabel('Score (%)', fontsize=9)
+        ax2.set_title('Flow Metrics', fontsize=11, pad=10)
+        ax2.set_ylim(0, 100)
+        ax2.tick_params(labelsize=8)
+        
+        # Add value labels on bars
+        for bar in bars:
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{height:.1f}%', ha='center', va='bottom', fontsize=8)
+        
+        fig.tight_layout()
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=section_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.stats_graph_canvases.append(canvas)
+    
+    def _create_mood_analysis_graph(self, summary):
+        """Create mood analysis graph"""
+        mood_analysis = summary.get('mood_analysis', {})
+        if not mood_analysis or not mood_analysis.get('emotion_percentages'):
+            return
+        
+        section_frame = ttk.Frame(self.stats_scrollable_frame, style='Card.TFrame')
+        section_frame.pack(fill=tk.BOTH, padx=20, pady=10)
+        
+        ttk.Label(section_frame, text="Mood Analysis", 
+                 style='Heading.TLabel').pack(anchor='w', padx=10, pady=(10, 5))
+        
+        emotion_pct = mood_analysis.get('emotion_percentages', {})
+        alerts = mood_analysis.get('alerts', {})
+        
+        # Create figure with 2 subplots
+        fig = Figure(figsize=(10, 5), facecolor=self.colors['bg_primary'])
+        
+        # Horizontal bar chart for emotions
+        ax1 = fig.add_subplot(121)
+        emotions = list(emotion_pct.keys())
+        percentages = list(emotion_pct.values())
+        
+        emotion_colors = {
+            'happy': '#10B981', 'sad': '#3B82F6', 'angry': '#EF4444',
+            'fear': '#F59E0B', 'surprise': '#8B5CF6', 'disgust': '#6366F1',
+            'neutral': '#94A3B8'
+        }
+        colors = [emotion_colors.get(e.lower(), '#94A3B8') for e in emotions]
+        
+        bars = ax1.barh(emotions, percentages, color=colors)
+        ax1.set_xlabel('Percentage (%)', fontsize=9)
+        ax1.set_title('Emotion Distribution', fontsize=11, pad=10)
+        ax1.set_xlim(0, 100)
+        ax1.tick_params(labelsize=8)
+        
+        # Add value labels
+        for bar in bars:
+            width = bar.get_width()
+            ax1.text(width, bar.get_y() + bar.get_height()/2.,
+                    f'{width:.1f}%', ha='left', va='center', fontsize=8, 
+                    bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+        
+        # Bar chart for alerts
+        ax2 = fig.add_subplot(122)
+        alert_types = ['Frustration', 'Stress', 'Positive']
+        alert_counts = [
+            alerts.get('frustration_count', 0),
+            alerts.get('stress_count', 0),
+            alerts.get('positive_count', 0)
+        ]
+        bars = ax2.bar(alert_types, alert_counts,
+                      color=[self.colors['danger'], self.colors['warning'], 
+                            self.colors['success']])
+        ax2.set_ylabel('Count', fontsize=9)
+        ax2.set_title('AI Interventions', fontsize=11, pad=10)
+        ax2.tick_params(labelsize=8)
+        
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            ax2.text(bar.get_x() + bar.get_width()/2., height,
+                    f'{int(height)}', ha='center', va='bottom', fontsize=8)
+        
+        fig.tight_layout()
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=section_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.stats_graph_canvases.append(canvas)
+    
+    def _create_activity_metrics_graph(self, summary):
+        """Create activity metrics graph"""
+        activity = summary.get('activity_metrics', {})
+        if not activity:
+            return
+        
+        section_frame = ttk.Frame(self.stats_scrollable_frame, style='Card.TFrame')
+        section_frame.pack(fill=tk.BOTH, padx=20, pady=10)
+        
+        ttk.Label(section_frame, text="Activity Metrics", 
+                 style='Heading.TLabel').pack(anchor='w', padx=10, pady=(10, 5))
+        
+        # Create figure
+        fig = Figure(figsize=(10, 4.5), facecolor=self.colors['bg_primary'])
+        ax = fig.add_subplot(111)
+        
+        metrics = {
+            'Typing Speed\n(keys/min)': activity.get('avg_typing_cadence_keys_per_min', 0),
+            'Mouse Movement\n(moves/min)': activity.get('avg_mouse_movement_per_min', 0),
+            'Task Switches\n(/min)': activity.get('avg_task_switches_per_min', 0)
+        }
+        
+        bars = ax.bar(metrics.keys(), metrics.values(),
+                     color=[self.colors['primary'], self.colors['secondary'], 
+                           self.colors['FOCUSED']])
+        ax.set_ylabel('Rate', fontsize=9)
+        ax.set_title('Activity Overview', fontsize=11, pad=10)
+        ax.tick_params(labelsize=8)
+        
+        # Add value labels
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(bar.get_x() + bar.get_width()/2., height,
+                   f'{height:.1f}', ha='center', va='bottom', fontsize=8)
+        
+        fig.tight_layout()
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=section_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.stats_graph_canvases.append(canvas)
+    
+    def _create_app_usage_graph(self, summary):
+        """Create application usage graph"""
+        app_usage = summary.get('app_usage', {})
+        top_apps = app_usage.get('top_5_apps', [])
+        
+        if not top_apps:
+            return
+        
+        section_frame = ttk.Frame(self.stats_scrollable_frame, style='Card.TFrame')
+        section_frame.pack(fill=tk.BOTH, padx=20, pady=10)
+        
+        ttk.Label(section_frame, text="Application Usage", 
+                 style='Heading.TLabel').pack(anchor='w', padx=10, pady=(10, 5))
+        
+        # Create figure
+        fig = Figure(figsize=(10, 5), facecolor=self.colors['bg_primary'])
+        ax = fig.add_subplot(111)
+        
+        # Filter out null apps and get top 5
+        filtered_apps = [app for app in top_apps if app.get('app') and app.get('app') != 'null'][:5]
+        
+        if filtered_apps:
+            app_names = [app['app'] for app in filtered_apps]
+            percentages = [app['percentage'] for app in filtered_apps]
+            
+            # Create color gradient
+            colors = plt.cm.viridis(range(len(app_names)))
+            
+            bars = ax.barh(app_names, percentages, color=colors)
+            ax.set_xlabel('Usage (%)', fontsize=9)
+            ax.set_title('Top Applications', fontsize=11, pad=10)
+            ax.set_xlim(0, 100)
+            ax.tick_params(labelsize=8)
+            
+            # Add value labels
+            for bar in bars:
+                width = bar.get_width()
+                ax.text(width, bar.get_y() + bar.get_height()/2.,
+                       f'{width:.1f}%', ha='left', va='center', fontsize=8,
+                       bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.7))
+        
+        fig.tight_layout()
+        
+        # Embed in tkinter
+        canvas = FigureCanvasTkAgg(fig, master=section_frame)
+        canvas.draw()
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.stats_graph_canvases.append(canvas)
+    
+    def create_ai_recommendations_tab(self, parent):
+        """Create AI recommendations tab with insights and suggestions"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+        
+        # Main scrollable container
+        canvas = tk.Canvas(parent, bg=self.colors['bg_primary'], highlightthickness=0)
+        scrollbar = ttk.Scrollbar(parent, orient="vertical", command=canvas.yview)
+        
+        scrollable_frame = ttk.Frame(canvas, style='Card.TFrame')
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        # Enable mouse wheel scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
+        
+        # Store reference for updates
+        self.ai_recommendations_frame = scrollable_frame
+        
+        # Initialize with content
+        self._update_ai_recommendations()
+    
+    def _update_ai_recommendations(self):
+        """Update AI recommendations with latest data"""
+        try:
+            import glob
+            
+            # Clear existing content
+            for widget in self.ai_recommendations_frame.winfo_children():
+                widget.destroy()
+            
+            # Get session data
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            logs_dir = os.path.join(os.path.dirname(backend_dir), 'session_logs')
+            
+            session_files = glob.glob(os.path.join(logs_dir, 'session_*.json'))
+            if not session_files:
+                no_data_label = ttk.Label(
+                    self.ai_recommendations_frame,
+                    text="No session data available yet.\nStart monitoring to receive AI recommendations.",
+                    font=('SF Pro Text', 12),
+                    foreground=self.colors['text_secondary']
+                )
+                no_data_label.pack(pady=50)
+                return
+            
+            # Load the most recent session
+            latest_session = max(session_files, key=os.path.getmtime)
+            with open(latest_session, 'r') as f:
+                data = json.load(f)
+            
+            summary = data.get('summary', {})
+            flow_analysis = summary.get('flow_state_analysis', {})
+            mood_analysis = summary.get('mood_analysis', {})
+            activity = summary.get('activity_metrics', {})
+            
+            avg_flow = flow_analysis.get('avg_flow_score', 0)
+            productivity = flow_analysis.get('productivity_score', 0)
+            dominant_emotion = mood_analysis.get('dominant_emotion', 'unknown')
+            task_switches = activity.get('avg_task_switches_per_min', 0)
+            
+            # Header
+            header_frame = ttk.Frame(self.ai_recommendations_frame, style='Card.TFrame')
+            header_frame.pack(fill=tk.X, padx=20, pady=20)
+            
+            ttk.Label(header_frame, text="AI-Powered Insights",
+                     font=('SF Pro Display', 18, 'bold'),
+                     foreground=self.colors['text_primary']).pack(anchor='w')
+            ttk.Label(header_frame, text="Personalized recommendations based on your work patterns",
+                     font=('SF Pro Text', 10),
+                     foreground=self.colors['text_secondary']).pack(anchor='w', pady=(5, 0))
+            
+            # Generate recommendations
+            recommendations = []
+            
+            # Flow state recommendations
+            if avg_flow < 30:
+                recommendations.append({
+                    'category': 'Flow State',
+                    'level': 'warning',
+                    'title': 'Low Flow State Detected',
+                    'description': f'Your average flow score is {avg_flow:.1f}%, which is below optimal levels.',
+                    'suggestions': [
+                        'Reduce environmental distractions (notifications, noise)',
+                        'Break large tasks into smaller, manageable chunks',
+                        'Take regular 5-10 minute breaks to maintain focus',
+                        'Consider using the Pomodoro technique (25 min work, 5 min break)'
+                    ]
+                })
+            elif avg_flow > 70:
+                recommendations.append({
+                    'category': 'Flow State',
+                    'level': 'success',
+                    'title': 'Excellent Flow State',
+                    'description': f'You\'re maintaining a high flow score of {avg_flow:.1f}%!',
+                    'suggestions': [
+                        'You\'re in the zone - keep up this momentum',
+                        'Document what\'s working well for future reference',
+                        'This is optimal time for challenging tasks'
+                    ]
+                })
+            
+            # Task switching recommendations
+            if task_switches > 10:
+                recommendations.append({
+                    'category': 'Focus Management',
+                    'level': 'warning',
+                    'title': 'High Task Switching Detected',
+                    'description': f'You\'re switching tasks {task_switches:.1f} times per minute.',
+                    'suggestions': [
+                        'Use time-blocking to allocate specific periods to tasks',
+                        'Close unnecessary browser tabs and applications',
+                        'Set specific "do not disturb" periods',
+                        'Batch similar tasks together to reduce context switching'
+                    ]
+                })
+            elif task_switches < 3:
+                recommendations.append({
+                    'category': 'Focus Management',
+                    'level': 'success',
+                    'title': 'Excellent Focus',
+                    'description': f'Low task switching ({task_switches:.1f}/min) indicates sustained concentration.',
+                    'suggestions': [
+                        'Perfect state for deep work and complex problem-solving',
+                        'Continue with your current focus strategy'
+                    ]
+                })
+            
+            # Mood-based recommendations
+            if mood_analysis and dominant_emotion in ['angry', 'sad', 'fear']:
+                recommendations.append({
+                    'category': 'Emotional Well-being',
+                    'level': 'danger',
+                    'title': f'Negative Emotion: {dominant_emotion.capitalize()}',
+                    'description': 'Your emotional state may be affecting productivity.',
+                    'suggestions': [
+                        'Take a 10-15 minute break to reset',
+                        'Try the 4-7-8 breathing technique',
+                        'Go for a short walk or do light stretching',
+                        'Consider if workload needs adjustment',
+                        'Reach out to a colleague or friend if needed'
+                    ]
+                })
+            elif mood_analysis and dominant_emotion == 'happy':
+                recommendations.append({
+                    'category': 'Emotional Well-being',
+                    'level': 'success',
+                    'title': 'Positive Emotional State',
+                    'description': 'Your positive mood enhances creativity and productivity.',
+                    'suggestions': [
+                        'Great time for brainstorming and creative work',
+                        'Consider tackling challenging problems',
+                        'Your positive energy can boost team collaboration'
+                    ]
+                })
+            
+            # Productivity recommendations
+            if productivity > 75:
+                recommendations.append({
+                    'category': 'Productivity',
+                    'level': 'success',
+                    'title': 'High Productivity',
+                    'description': f'Your productivity score is {productivity:.1f}% - excellent work!',
+                    'suggestions': [
+                        'You\'re working efficiently and effectively',
+                        'Remember to take breaks to sustain this level',
+                        'Consider mentoring others on your strategies'
+                    ]
+                })
+            elif productivity < 40:
+                recommendations.append({
+                    'category': 'Productivity',
+                    'level': 'warning',
+                    'title': 'Lower Productivity Detected',
+                    'description': f'Your productivity score is {productivity:.1f}%.',
+                    'suggestions': [
+                        'Review your work environment for improvements',
+                        'Assess if tasks are appropriately scoped',
+                        'Consider energy levels - might need rest',
+                        'Check if you have the right tools and resources',
+                        'Break down overwhelming tasks into smaller steps'
+                    ]
+                })
+            
+            if not recommendations:
+                recommendations.append({
+                    'category': 'General',
+                    'level': 'info',
+                    'title': 'Keep Monitoring',
+                    'description': 'Continue using PRISM to gather more data.',
+                    'suggestions': [
+                        'More insights will appear as data accumulates',
+                        'Maintain consistent monitoring for best results'
+                    ]
+                })
+            
+            # Display recommendations
+            for rec in recommendations:
+                self._create_recommendation_card(rec)
+            
+        except Exception as e:
+            print(f"Error updating AI recommendations: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def _create_recommendation_card(self, recommendation):
+        """Create a styled recommendation card"""
+        card_frame = ttk.Frame(self.ai_recommendations_frame, style='Card.TFrame', relief='solid', borderwidth=1)
+        card_frame.pack(fill=tk.X, padx=20, pady=10)
+        
+        # Color coding based on level
+        level_colors = {
+            'success': self.colors['success'],
+            'warning': self.colors['warning'],
+            'danger': self.colors['danger'],
+            'info': self.colors['primary']
+        }
+        level_color = level_colors.get(recommendation['level'], self.colors['text_primary'])
+        
+        # Level icons
+        level_icons = {
+            'success': '✓',
+            'warning': '⚠',
+            'danger': '⚠',
+            'info': 'ℹ'
+        }
+        icon = level_icons.get(recommendation['level'], '•')
+        
+        # Header with category and icon
+        header = ttk.Frame(card_frame, style='Card.TFrame')
+        header.pack(fill=tk.X, padx=15, pady=(15, 10))
+        
+        ttk.Label(header, text=f"{icon} {recommendation['category']}",
+                 font=('SF Pro Text', 9, 'bold'),
+                 foreground=level_color).pack(side=tk.LEFT)
+        
+        # Title
+        ttk.Label(card_frame, text=recommendation['title'],
+                 font=('SF Pro Display', 14, 'bold'),
+                 foreground=self.colors['text_primary']).pack(anchor='w', padx=15, pady=(0, 5))
+        
+        # Description
+        ttk.Label(card_frame, text=recommendation['description'],
+                 font=('SF Pro Text', 10),
+                 foreground=self.colors['text_secondary'],
+                 wraplength=800).pack(anchor='w', padx=15, pady=(0, 10))
+        
+        # Suggestions
+        if recommendation.get('suggestions'):
+            ttk.Label(card_frame, text="Recommendations:",
+                     font=('SF Pro Text', 10, 'bold'),
+                     foreground=self.colors['text_primary']).pack(anchor='w', padx=15, pady=(5, 5))
+            
+            for suggestion in recommendation['suggestions']:
+                suggestion_frame = ttk.Frame(card_frame, style='Card.TFrame')
+                suggestion_frame.pack(fill=tk.X, padx=15, pady=2)
+                
+                ttk.Label(suggestion_frame, text="•",
+                         font=('SF Pro Text', 10),
+                         foreground=level_color).pack(side=tk.LEFT, padx=(10, 5))
+                
+                ttk.Label(suggestion_frame, text=suggestion,
+                         font=('SF Pro Text', 10),
+                         foreground=self.colors['text_primary'],
+                         wraplength=750).pack(side=tk.LEFT, anchor='w')
+        
+        # Bottom padding
+        ttk.Frame(card_frame, height=15).pack()
     
     def start_mood_monitor(self):
         """Start the mood monitor"""
@@ -1200,15 +1902,15 @@ class NotificationGUI:
             return
         
         if mood_monitor.running:
-            print("⚠️  Mood monitor is already running")
+            print("Mood monitor is already running")
             return
         
-        print("▶️  Starting mood monitor...")
+        print("Starting mood monitor...")
         mood_monitor.start()
-        self.mood_status_label.config(text="Enabled ✓", foreground='green')
+        self.mood_status_label.config(text="Enabled", foreground='green')
         self.mood_start_btn.config(state=tk.DISABLED)
         self.mood_stop_btn.config(state=tk.NORMAL)
-        print("✓ Mood monitor started successfully")
+        print("Mood monitor started successfully")
     
     def stop_mood_monitor(self):
         """Stop the mood monitor"""
@@ -1218,7 +1920,7 @@ class NotificationGUI:
             self.mood_status_label.config(text="Disabled", foreground='gray')
             self.mood_start_btn.config(state=tk.NORMAL)
             self.mood_stop_btn.config(state=tk.DISABLED)
-            print("✓ Mood monitor stopped")
+            print("Mood monitor stopped")
     
     def reset_mood_stats(self):
         """Reset mood statistics"""
@@ -1226,31 +1928,21 @@ class NotificationGUI:
         if mood_monitor:
             mood_monitor.reset()
             self._update_mood_stats_display("Statistics reset. Continue monitoring to collect new data.")
-            print("✓ Mood statistics reset")
+            print("Mood statistics reset")
     
     def load_app_lists(self):
         """Load current app lists from flow amplifier"""
         # Load from saved config if exists
         self.load_app_config()
         
-        # Clear listboxes
+        # Clear listbox
         self.allowed_apps_listbox.delete(0, tk.END)
-        self.protected_apps_listbox.delete(0, tk.END)
-        self.distraction_apps_listbox.delete(0, tk.END)
         
         # Load allowed apps (for whitelist mode)
         whitelist_controller = self.flow_monitor.get_whitelist_controller()
         if whitelist_controller:
             for app in sorted(whitelist_controller.get_allowed_apps()):
                 self.allowed_apps_listbox.insert(tk.END, app)
-        
-        # Load protected apps
-        for app in sorted(self.flow_amplifier.PROTECTED_APPS):
-            self.protected_apps_listbox.insert(tk.END, app)
-        
-        # Load distraction apps
-        for app in sorted(self.flow_amplifier.DISTRACTION_APPS):
-            self.distraction_apps_listbox.insert(tk.END, app)
     
     def load_app_config(self):
         """Load app lists from config file"""
@@ -1268,9 +1960,9 @@ class NotificationGUI:
                         whitelist_controller.set_allowed_apps(config['allowed_apps'])
                         self.flow_monitor.set_allowed_apps(config['allowed_apps'])
                     
-                    print(f"✓ Loaded app configuration from {config_file}")
+                    print(f"Loaded app configuration from {config_file}")
             except Exception as e:
-                print(f"⚠️  Could not load app config: {e}")
+                print(f"Could not load app config: {e}")
     
     def save_app_config(self):
         """Save app lists to config file"""
@@ -1288,9 +1980,9 @@ class NotificationGUI:
             
             with open(config_file, 'w') as f:
                 json.dump(config, f, indent=2)
-            print(f"✓ Saved app configuration to {config_file}")
+            print(f"Saved app configuration to {config_file}")
         except Exception as e:
-            print(f"⚠️  Could not save app config: {e}")
+            print(f"Could not save app config: {e}")
     
     def add_protected_app(self):
         """Add a new protected app"""
@@ -1310,7 +2002,7 @@ class NotificationGUI:
         self.protected_apps_listbox.insert(tk.END, app_name)
         self.protected_app_entry.delete(0, tk.END)
         self.save_app_config()
-        print(f"✓ Added protected app: {app_name}")
+        print(f"Added protected app: {app_name}")
     
     def remove_protected_app(self):
         """Remove selected protected app"""
@@ -1327,7 +2019,7 @@ class NotificationGUI:
                 self.flow_amplifier.PROTECTED_APPS.remove(app_name)
                 self.protected_apps_listbox.delete(index)
                 self.save_app_config()
-                print(f"✓ Removed protected app: {app_name}")
+                print(f"Removed protected app: {app_name}")
     
     def add_distraction_app(self):
         """Add a new distraction app"""
@@ -1347,7 +2039,7 @@ class NotificationGUI:
         self.distraction_apps_listbox.insert(tk.END, app_name)
         self.distraction_app_entry.delete(0, tk.END)
         self.save_app_config()
-        print(f"✓ Added distraction app: {app_name}")
+        print(f"Added distraction app: {app_name}")
     
     def remove_distraction_app(self):
         """Remove selected distraction app"""
@@ -1364,7 +2056,7 @@ class NotificationGUI:
                 self.flow_amplifier.DISTRACTION_APPS.remove(app_name)
                 self.distraction_apps_listbox.delete(index)
                 self.save_app_config()
-                print(f"✓ Removed distraction app: {app_name}")
+                print(f"Removed distraction app: {app_name}")
     
     def toggle_whitelist_mode(self):
         """Toggle whitelist mode on/off"""
@@ -1391,12 +2083,12 @@ class NotificationGUI:
             
             whitelist_controller.start()
             self.whitelist_status_label.config(text=f"Status: Active ({len(apps)} apps allowed)", foreground='green')
-            print("✓ Whitelist mode enabled")
+            print("Whitelist mode enabled")
         else:
             # Disable whitelist mode
             whitelist_controller.stop()
             self.whitelist_status_label.config(text="Status: Disabled", foreground='gray')
-            print("✓ Whitelist mode disabled")
+            print("Whitelist mode disabled")
     
     def _clear_entry_placeholder(self, event):
         """Clear placeholder text when entry is focused"""
@@ -1435,7 +2127,7 @@ class NotificationGUI:
         self.allowed_apps_listbox.insert(tk.END, app_name)
         self.allowed_app_entry.delete(0, tk.END)
         self.save_app_config()
-        print(f"✓ Added allowed app: {app_name}")
+        print(f"Added allowed app: {app_name}")
         
         # Update status label
         if self.whitelist_enabled.get():
@@ -1472,7 +2164,7 @@ class NotificationGUI:
                     self.allowed_apps_listbox.delete(idx)
                 
                 self.save_app_config()
-                print(f"✓ Removed {len(selected_apps)} allowed app(s)")
+                print(f"Removed {len(selected_apps)} allowed app(s)")
                 
                 # Update status label
                 if self.whitelist_enabled.get():
@@ -1503,7 +2195,7 @@ class NotificationGUI:
             self.allowed_apps_listbox.delete(0, tk.END)
             
             self.save_app_config()
-            print("✓ Cleared all allowed apps")
+            print("Cleared all allowed apps")
             
             # Update status label
             if self.whitelist_enabled.get():
@@ -1539,7 +2231,7 @@ class NotificationGUI:
         main_frame.rowconfigure(2, weight=1)
         
         # Info label
-        info_text = "Select currently running apps to add to your whitelist. Apps with ✓ are already allowed."
+        info_text = "Select currently running apps to add to your whitelist. Apps with [*] are already allowed."
         info_label = ttk.Label(main_frame, text=info_text, wraplength=550)
         info_label.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
         
@@ -1590,7 +2282,7 @@ class NotificationGUI:
                     for app in sorted(running_apps):
                         display_name = app
                         if app in current_apps:
-                            display_name = f"{app} ✓"
+                            display_name = f"{app} [*]"
                         apps_listbox.insert(tk.END, display_name)
                     
                     status_label.config(text=f"Found {len(running_apps)} running applications", foreground='green')
@@ -1610,8 +2302,8 @@ class NotificationGUI:
             
             for idx in selections:
                 app_text = apps_listbox.get(idx)
-                # Remove ✓ if present
-                app_name = app_text.replace(' ✓', '').strip()
+                # Remove [*] if present
+                app_name = app_text.replace(' [*]', '').strip()
                 selected_apps.append(app_name)
             
             dialog.destroy()
@@ -1656,7 +2348,7 @@ class NotificationGUI:
             if newly_added:
                 self.flow_monitor.set_allowed_apps(whitelist_controller.get_allowed_apps())
                 self.save_app_config()
-                print(f"✓ Added {len(newly_added)} running apps: {', '.join(newly_added)}")
+                print(f"Added {len(newly_added)} running apps: {', '.join(newly_added)}")
                 
                 # Update status label
                 if self.whitelist_enabled.get():
@@ -1757,7 +2449,7 @@ class NotificationGUI:
                             # Mark if already in list
                             display_name = app
                             if app in current_apps:
-                                display_name = f"{app} ✓"
+                                display_name = f"{app} [*]"
                             
                             tree.insert(parent, 'end', values=(display_name,), tags=(app,))
                     
@@ -1848,7 +2540,7 @@ class NotificationGUI:
             if newly_added:
                 self.flow_monitor.set_allowed_apps(whitelist_controller.get_allowed_apps())
                 self.save_app_config()
-                print(f"✓ Added {len(newly_added)} apps: {', '.join(newly_added)}")
+                print(f"Added {len(newly_added)} apps: {', '.join(newly_added)}")
                 
                 # Update status label
                 if self.whitelist_enabled.get():
@@ -1866,9 +2558,9 @@ class NotificationGUI:
         # Format notification
         text = f"[{timestamp}] "
         if notification_data['is_critical']:
-            text += "✅ ALLOWED - "
+            text += "[ALLOWED] - "
         else:
-            text += "🚫 BLOCKED - "
+            text += "[BLOCKED] - "
         
         text += f"{notification_data['app_name']}: {notification_data['title']}\n"
         text += f"   Reason: {notification_data['reason']} (Confidence: {notification_data['confidence']:.2f})\n\n"
@@ -1904,25 +2596,20 @@ class NotificationGUI:
         flow_analysis = self.flow_monitor.get_current_state()
         amp_stats = self.flow_amplifier.get_statistics()
         
-        # Update flow state
+        # Update flow state with modern styling
         state = flow_analysis['flow_state']
         score = flow_analysis['flow_score']
         duration = flow_analysis['flow_duration']
         
-        self.flow_state_label.config(text=state, foreground=self.colors.get(state, 'black'))
+        self.flow_state_label.config(text=state, foreground=self.colors.get(state, self.colors['text_primary']))
         self.flow_score_label.config(text=f"{score:.1f}%")
         self.flow_progress['value'] = score
         
-        # Format duration
-        minutes = int(duration // 60)
-        seconds = int(duration % 60)
-        self.duration_label.config(text=f"{minutes}:{seconds:02d}")
-        
-        # Update amplification status
+        # Update amplification status with modern colors
         if amp_stats['dnd_enabled']:
-            self.dnd_status_label.config(text="🔕 ON", foreground='red')
+            self.dnd_status_label.config(text="ON", foreground=self.colors['danger'])
         else:
-            self.dnd_status_label.config(text="🔔 OFF", foreground='green')
+            self.dnd_status_label.config(text="OFF", foreground=self.colors['success'])
         
         self.suppressed_label.config(text=str(amp_stats['suppressed_count']))
         self.banished_label.config(text=str(amp_stats['banished_apps']))
@@ -1959,44 +2646,184 @@ class NotificationGUI:
         
         # Update mood monitor display
         self.update_mood_display(metrics)
+        
+        # Update session stats display (with graphs) every 30 seconds
+        self.stats_update_counter += 1
+        if self.stats_update_counter >= 30:
+            self._update_session_stats_with_graphs()
+            self._update_ai_recommendations()
+            self.stats_update_counter = 0
     
     def update_metrics_display(self, metrics):
-        """Update metrics tab"""
+        """Update metrics tab with clean professional formatting"""
         try:
-            text = "=== Real-Time Metrics ===\n\n"
+            # Clean professional header
+            text = "\n"
+            text += "  PRODUCTIVITY ANALYTICS\n"
+            text += "  " + "─" * 61 + "\n\n"
             
-            # Keyboard metrics
-            text += "📝 Keyboard:\n"
-            text += f"  Typing Cadence: {metrics['keyboard']['typing_cadence']:.1f} keys/min\n"
-            text += f"  Avg Latency: {metrics['keyboard']['avg_inter_key_latency']:.3f}s\n"
-            text += f"  Error Rate: {metrics['keyboard']['error_rate']:.2%}\n\n"
+            # Extract metrics
+            cadence = metrics['keyboard']['typing_cadence']
+            latency = metrics['keyboard']['avg_inter_key_latency']
+            error_rate = metrics['keyboard']['error_rate']
+            move_rate = metrics['mouse']['mouse_move_rate']
+            scroll_vel = metrics['mouse']['scroll_velocity']
+            scroll_bursts = metrics['mouse']['scroll_bursts']
+            task_switches = metrics['window']['task_switch_frequency']
+            active_apps = metrics['window']['active_app_count']
+            current_app = metrics['window']['current_app']
+            avg_flow = metrics['trends']['avg_flow_score']
+            flow_pct = metrics['trends']['flow_percentage']
+            trend = metrics['trends']['trend']
             
-            # Mouse metrics
-            text += "🖱️ Mouse:\n"
-            text += f"  Movement Rate: {metrics['mouse']['mouse_move_rate']:.1f} moves/min\n"
-            text += f"  Scroll Velocity: {metrics['mouse']['scroll_velocity']:.2f}\n"
-            text += f"  Scroll Bursts: {metrics['mouse']['scroll_bursts']}\n\n"
+            # KEYBOARD SECTION
+            text += "  KEYBOARD METRICS\n"
+            text += "  " + "─" * 61 + "\n\n"
             
-            # Window metrics
-            text += "🪟 Window:\n"
-            text += f"  Task Switches: {metrics['window']['task_switch_frequency']:.1f}/min\n"
-            text += f"  Active Apps: {metrics['window']['active_app_count']}\n"
-            text += f"  Current App: {metrics['window']['current_app']}\n\n"
+            # Typing speed with clean status bar
+            cadence_pct = min(100, (cadence / 200) * 100)
+            cadence_bar = self._create_clean_bar(cadence_pct, 40)
+            text += f"  Typing Speed              {cadence:>6.1f} keys/min\n"
+            text += f"  {cadence_bar}\n\n"
             
-            # Trends
-            text += "📊 Trends (10 min):\n"
-            text += f"  Avg Flow Score: {metrics['trends']['avg_flow_score']:.1f}\n"
-            text += f"  Time in Flow: {metrics['trends']['flow_percentage']:.1f}%\n"
-            text += f"  Trend: {metrics['trends']['trend']}\n"
+            # Response time with quality indicator
+            latency_quality = "Excellent" if latency < 0.15 else "Good" if latency < 0.25 else "Fair"
+            text += f"  Response Time             {latency:>6.3f}s        {latency_quality}\n\n"
+            
+            # Accuracy rate
+            accuracy = (1 - error_rate) * 100
+            error_badge = "Perfect" if error_rate == 0 else "Excellent" if error_rate < 0.02 else "Good"
+            text += f"  Accuracy Rate             {accuracy:>6.2f}%        {error_badge}\n\n"
+            text += "\n"
+            
+            # MOUSE SECTION
+            text += "  MOUSE METRICS\n"
+            text += "  " + "─" * 61 + "\n\n"
+            
+            # Movement activity with clean status bar
+            move_pct = min(100, (move_rate / 3000) * 100)
+            move_bar = self._create_clean_bar(move_pct, 40)
+            text += f"  Movement Activity         {move_rate:>6.1f} moves/min\n"
+            text += f"  {move_bar}\n\n"
+            
+            # Scroll velocity
+            scroll_intensity = "High" if scroll_bursts > 100 else "Moderate" if scroll_bursts > 50 else "Low"
+            text += f"  Scroll Velocity           {scroll_vel:>6.2f}           {scroll_intensity}\n\n"
+            
+            # Scroll bursts
+            text += f"  Scroll Bursts             {scroll_bursts:>6} interactions\n\n"
+            text += "\n"
+            
+            # WINDOW SECTION
+            text += "  FOCUS METRICS\n"
+            text += "  " + "─" * 61 + "\n\n"
+            
+            # Task switches
+            text += f"  Task Switches             {task_switches:>6.1f} /min\n\n"
+            
+            # Focus score with status bar
+            focus_score = max(0, 100 - (task_switches * 5))
+            focus_label = "Excellent" if focus_score > 80 else "Good" if focus_score > 60 else "Poor"
+            focus_bar = self._create_clean_bar(focus_score, 40)
+            text += f"  Focus Score               {focus_score:>6.1f}%        {focus_label}\n"
+            text += f"  {focus_bar}\n\n"
+            
+            # Active applications
+            text += f"  Active Applications       {active_apps:>6} running\n\n"
+            
+            # Current app - truncate if needed
+            display_app = current_app if len(current_app) <= 45 else current_app[:42] + "..."
+            text += f"  Current Application\n"
+            text += f"  → {display_app}\n\n"
+            text += "\n"
+            
+            # FLOW STATE SECTION
+            text += "  FLOW STATE ANALYSIS (10 min window)\n"
+            text += "  " + "─" * 61 + "\n\n"
+            
+            # Average flow score with status bar
+            flow_rating = "Deep Flow" if avg_flow > 75 else "Flow" if avg_flow > 50 else "Focused" if avg_flow > 25 else "Working"
+            flow_bar = self._create_clean_bar(avg_flow, 40)
+            text += f"  Average Flow Score        {avg_flow:>6.1f}%        {flow_rating}\n"
+            text += f"  {flow_bar}\n\n"
+            
+            # Time in flow state
+            text += f"  Time in Flow State        {flow_pct:>6.1f}% of session\n\n"
+            
+            # Trend with detailed indicator
+            if trend == "improving":
+                trend_icon = "↗"
+                trend_status = "IMPROVING"
+                trend_msg = "Great job! Productivity is increasing"
+            elif trend == "declining":
+                trend_icon = "↘"
+                trend_status = "DECLINING"
+                trend_msg = "Consider taking a break or changing tasks"
+            else:
+                trend_icon = "→"
+                trend_status = "STABLE"
+                trend_msg = "Maintaining consistent performance"
+            
+            text += f"  Trend Direction           {trend_icon}  {trend_status}\n"
+            text += f"  → {trend_msg}\n\n"
+            
+            # Footer with timestamp
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%I:%M:%S %p")
+            text += f"  ─────────────────────────────────────────────────────────────\n"
+            text += f"  Last updated: {timestamp}                    Refresh: 1s\n"
+            text += f"  ─────────────────────────────────────────────────────────────\n"
+            
+            # Save scroll position before updating
+            scroll_position = self.metrics_text.yview()
             
             self.metrics_text.config(state=tk.NORMAL)
             self.metrics_text.delete(1.0, tk.END)
             self.metrics_text.insert(tk.END, text)
             self.metrics_text.config(state=tk.DISABLED)
+            
+            # Restore scroll position after updating
+            self.metrics_text.yview_moveto(scroll_position[0])
         except Exception as e:
             print(f"Error updating metrics display: {e}")
             import traceback
             traceback.print_exc()
+    
+    def _create_gradient_bar(self, value, max_value, width):
+        """Create a professional gradient bar with percentage indicator"""
+        filled = int((value / max_value) * width)
+        filled = min(filled, width)
+        
+        # Create gradient effect with different block characters
+        bar = ""
+        for i in range(width):
+            if i < filled:
+                # Use different intensities for gradient effect
+                if i < filled * 0.6:
+                    bar += "█"
+                elif i < filled * 0.8:
+                    bar += "▓"
+                else:
+                    bar += "▒"
+            else:
+                bar += "░"
+        
+        # Add percentage indicator
+        percentage = min(100, (value / max_value) * 100)
+        bar += f" {percentage:>5.1f}%"
+        
+        return bar
+    
+    def _create_clean_bar(self, percentage, width):
+        """Create a clean status bar with percentage"""
+        percentage = min(100, max(0, percentage))
+        filled = int((percentage / 100) * width)
+        
+        # Simple filled/unfilled bar
+        bar = "█" * filled + "░" * (width - filled)
+        bar += f" {percentage:>5.1f}%"
+        
+        return bar
     
     def update_mood_display(self, metrics):
         """Update mood monitor display"""
@@ -2004,21 +2831,21 @@ class NotificationGUI:
         if not mood_monitor:
             return
         
-        # Emotion emojis
-        emotion_emojis = {
-            'happy': '😊',
-            'sad': '😢',
-            'angry': '😠',
-            'fear': '😨',
-            'surprise': '😲',
-            'disgust': '🤢',
-            'neutral': '😐'
+        # Emotion text markers
+        emotion_markers = {
+            'happy': '[+]',
+            'sad': '[-]',
+            'angry': '[!]',
+            'fear': '[?]',
+            'surprise': '[*]',
+            'disgust': '[x]',
+            'neutral': '[=]'
         }
         
         # Update status label and buttons based on actual running state
         if mood_monitor.running:
-            if self.mood_status_label.cget('text') != "Enabled ✓":
-                self.mood_status_label.config(text="Enabled ✓", foreground='green')
+            if self.mood_status_label.cget('text') != "Enabled":
+                self.mood_status_label.config(text="Enabled", foreground='green')
                 self.mood_start_btn.config(state=tk.DISABLED)
                 self.mood_stop_btn.config(state=tk.NORMAL)
         else:
@@ -2036,7 +2863,7 @@ class NotificationGUI:
             # Check if we have any historical data to show
             if 'mood' in metrics and metrics['mood'] and metrics['mood'].get('total_checks', 0) > 0:
                 # Show historical stats even when not running
-                self._display_mood_statistics(metrics, emotion_emojis)
+                self._display_mood_statistics(metrics, emotion_markers)
             else:
                 self._update_mood_stats_display("No mood data available. Click 'Start Monitoring' to begin collecting data.")
             return
@@ -2051,15 +2878,15 @@ class NotificationGUI:
             # Add contextual description
             if current_emotion in ['angry', 'disgust', 'fear']:
                 message += " (frustrated)"
-                alert_msg = "⚠️ Alert: frustration"
+                alert_msg = "Alert: frustration"
                 self.mood_alert_label.config(text=alert_msg, foreground='#FF6B6B')
             elif current_emotion == 'sad':
                 message += " (low mood)"
-                alert_msg = "⚠️ Alert: stress"
+                alert_msg = "Alert: stress"
                 self.mood_alert_label.config(text=alert_msg, foreground='#FFA500')
             elif current_emotion == 'happy':
                 message += " (positive)"
-                alert_msg = "✓ Positive mood detected"
+                alert_msg = "Positive mood detected"
                 self.mood_alert_label.config(text=alert_msg, foreground='#4CAF50')
             elif current_emotion == 'surprise':
                 message += " (unexpected)"
@@ -2077,11 +2904,11 @@ class NotificationGUI:
         
         # Update statistics
         if 'mood' in metrics and metrics['mood']:
-            self._display_mood_statistics(metrics, emotion_emojis)
+            self._display_mood_statistics(metrics, emotion_markers)
         else:
             self._update_mood_stats_display("Monitoring active. Waiting for first emotion detection...")
     
-    def _display_mood_statistics(self, metrics, emotion_emojis):
+    def _display_mood_statistics(self, metrics, emotion_markers):
         """Display mood statistics in the text widget"""
         stats = metrics['mood']
         mood_trend = metrics.get('mood_trend', {})
@@ -2091,37 +2918,36 @@ class NotificationGUI:
         text += f"Successful Detections: {stats.get('emotion_detected_count', 0)}\n"
         text += f"Detection Rate: {stats.get('detection_rate', 0):.1%}\n\n"
         
-        text += "📊 Emotion Distribution:\n"
+        text += "Emotion Distribution:\n"
         emotion_counts = stats.get('emotion_counts', {})
         if emotion_counts:
             for emotion, count in sorted(emotion_counts.items(), key=lambda x: x[1], reverse=True):
                 total = stats.get('total_checks', 0)
                 percentage = (count / total * 100) if total > 0 else 0
-                emoji = emotion_emojis.get(emotion, '❓')
-                text += f"  {emoji} {emotion.capitalize()}: {count} ({percentage:.1f}%)\n"
+                text += f"  {emotion.capitalize()}: {count} ({percentage:.1f}%)\n"
         else:
             text += "  No emotions detected yet...\n"
         
-        text += f"\n🔔 Alert Statistics:\n"
+        text += f"\nAlert Statistics:\n"
         text += f"  Frustration Alerts: {stats.get('frustration_count', 0)}\n"
         text += f"  Stress Alerts: {stats.get('stress_count', 0)}\n"
         text += f"  Positive Mood Count: {stats.get('positive_count', 0)}\n\n"
         
         if mood_trend and mood_trend.get('sample_count', 0) > 0:
-            text += "📈 Recent Trend (10 min):\n"
+            text += "Recent Trend (10 min):\n"
             text += f"  Dominant Emotion: {mood_trend.get('dominant_emotion', 'N/A').capitalize()}\n"
             text += f"  Average Confidence: {mood_trend.get('avg_confidence', 0):.1%}\n"
             text += f"  Samples: {mood_trend.get('sample_count', 0)}\n"
         else:
-            text += "📈 Recent Trend (10 min):\n"
+            text += "Recent Trend (10 min):\n"
             text += "  Collecting data...\n"
         
-        self._update_mood_stats_display(text)
+        # Statistics display removed - no longer showing text stats
     
     def reset_metrics(self):
         """Reset all metrics"""
         self.flow_monitor.reset()
-        print("✓ Metrics reset")
+        print("Metrics reset")
     
     def show_trends(self):
         """Show trends in a popup"""
@@ -2151,72 +2977,90 @@ class NotificationGUI:
         Show AI suggestion notification with action button
         User can choose to accept or dismiss the suggestion
         """
-        print(f"🤖 AI Suggestion: {title} - {message}")
+        print(f"AI Suggestion: {title} - {message}")
         
-        # Create notification window
+        # Create notification window with modern styling
         notification = tk.Toplevel(self.root)
-        notification.title("AI Assistant Suggestion")
-        notification.geometry("500x250")
+        notification.title("PRISM · AI Assistant")
+        notification.geometry("420x220")
         notification.resizable(False, False)
+        notification.configure(bg=self.colors['bg_primary'])
         
-        # Set colors based on severity
+        # Remove window decorations for modern look (macOS)
+        try:
+            notification.tk.call('::tk::unsupported::MacWindowStyle', 'style', notification._w, 'document', 'closeBox')
+        except:
+            pass
+        
+        # Position in bottom right corner
+        notification.update_idletasks()
+        screen_width = notification.winfo_screenwidth()
+        screen_height = notification.winfo_screenheight()
+        window_width = 420
+        window_height = 220
+        x = screen_width - window_width - 20  # 20px from right edge
+        y = screen_height - window_height - 80  # 80px from bottom (for dock/taskbar)
+        notification.geometry(f"{window_width}x{window_height}+{x}+{y}")
+        
+        # Set colors based on severity (using new design system)
         severity_colors = {
-            "info": {"bg": "#2196F3", "fg": "white"},
-            "warning": {"bg": "#FF9800", "fg": "white"},
-            "urgent": {"bg": "#F44336", "fg": "white"}
+            "info": {"bg": self.colors['primary'], "fg": "white"},
+            "warning": {"bg": self.colors['warning'], "fg": "white"},
+            "urgent": {"bg": self.colors['danger'], "fg": "white"}
         }
         colors = severity_colors.get(severity, severity_colors["info"])
         
-        # Header frame
-        header_frame = tk.Frame(notification, bg=colors["bg"])
+        # Add subtle border
+        border_frame = tk.Frame(notification, bg=self.colors['border'], padx=1, pady=1)
+        border_frame.pack(fill=tk.BOTH, expand=True)
+        
+        content_frame = tk.Frame(border_frame, bg=self.colors['bg_primary'])
+        content_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Header frame with gradient-like effect
+        header_frame = tk.Frame(content_frame, bg=colors["bg"], height=55)
         header_frame.pack(fill=tk.X, pady=0)
+        header_frame.pack_propagate(False)
         
-        # Severity icon
-        severity_icons = {
-            "info": "ℹ️",
-            "warning": "⚠️",
-            "urgent": "🚨"
-        }
-        icon = severity_icons.get(severity, "ℹ️")
-        
-        # Title with icon
-        title_label = tk.Label(header_frame, text=f"{icon} {title}", 
-                              font=('Arial', 16, 'bold'),
+        # Title with better spacing
+        title_label = tk.Label(header_frame, text=title, 
+                              font=('SF Pro Display', 14, 'bold'),
                               bg=colors["bg"], fg=colors["fg"],
                               pady=15)
         title_label.pack()
         
-        # Message frame
-        message_frame = tk.Frame(notification, bg='white')
-        message_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        # Message frame with padding
+        message_frame = tk.Frame(content_frame, bg=self.colors['bg_primary'])
+        message_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=12)
         
-        # Message text
+        # Message text with better typography
         message_label = tk.Label(message_frame, text=message,
-                                font=('Arial', 12),
-                                bg='white', fg='#333333',
-                                wraplength=450, justify=tk.LEFT)
-        message_label.pack(pady=10)
+                                font=('SF Pro Text', 11),
+                                bg=self.colors['bg_primary'], 
+                                fg=self.colors['text_primary'],
+                                wraplength=370, justify=tk.LEFT)
+        message_label.pack()
         
-        # Button frame
-        button_frame = tk.Frame(notification, bg='white')
-        button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+        # Button frame with better spacing
+        button_frame = tk.Frame(content_frame, bg=self.colors['bg_primary'])
+        button_frame.pack(fill=tk.X, padx=20, pady=(0, 15))
         
         # Action button
         action_text_map = {
-            "breathing_exercise": "🫁 Start Breathing Exercise",
-            "eye_break": "👁️ Take Eye Break",
-            "calm_music": "🎵 Play Calm Music",
-            "dnd_mode": "🚫 Enable DND Mode",
-            "take_break": "☕ Take a Break",
-            "block_app": "📱 Block App",
-            "encouragement": "✨ Got it!"
+            "breathing_exercise": "Start Breathing Exercise",
+            "eye_break": "Take Eye Break",
+            "calm_music": "Play Calm Music",
+            "dnd_mode": "Enable DND Mode",
+            "take_break": "Take a Break",
+            "block_app": "Block App",
+            "encouragement": "Got it!"
         }
         action_text = action_text_map.get(suggestion_type, "Accept")
         
         def accept_suggestion():
             """Execute the suggested action"""
             notification.destroy()
-            print(f"✓ User accepted suggestion: {suggestion_type}")
+            print(f"User accepted suggestion: {suggestion_type}")
             
             # Map suggestion types to actual callback methods
             action_map = {
@@ -2238,8 +3082,8 @@ class NotificationGUI:
                     break_type=action_params.get('break_type') if action_params else "short_break",
                     duration_minutes=action_params.get('duration_minutes') if action_params else None
                 ),
-                "block_app": lambda: print(f"⚠️  App blocking not implemented yet"),
-                "encouragement": lambda: print("✨ Keep up the great work!")
+                "block_app": lambda: print(f"App blocking not implemented yet"),
+                "encouragement": lambda: print("Keep up the great work!")
             }
             
             # Execute the action
@@ -2249,26 +3093,98 @@ class NotificationGUI:
         def dismiss_suggestion():
             """Dismiss the notification"""
             notification.destroy()
-            print(f"⏭️  User dismissed suggestion: {suggestion_type}")
+            print(f"User dismissed suggestion: {suggestion_type}")
         
-        accept_btn = tk.Button(button_frame, text=action_text,
-                              font=('Arial', 11, 'bold'),
-                              bg=colors["bg"], fg=colors["fg"],
-                              activebackground=colors["bg"],
-                              activeforeground=colors["fg"],
-                              command=accept_suggestion,
-                              cursor='hand2',
-                              padx=20, pady=10)
-        accept_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+        # Create rounded button frames using canvas
+        accept_frame = tk.Frame(button_frame, bg=self.colors['bg_primary'])
+        accept_frame.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
         
-        dismiss_btn = tk.Button(button_frame, text="✕ Dismiss",
-                               font=('Arial', 11),
-                               bg='#E0E0E0', fg='#333333',
-                               activebackground='#BDBDBD',
-                               command=dismiss_suggestion,
-                               cursor='hand2',
-                               padx=20, pady=10)
-        dismiss_btn.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
+        accept_canvas = tk.Canvas(accept_frame, height=36, bg=self.colors['bg_primary'], 
+                                 highlightthickness=0)
+        accept_canvas.pack(fill=tk.X)
+        
+        # Draw rounded rectangle for accept button
+        def draw_rounded_rect(canvas, x1, y1, x2, y2, radius, fill, outline=""):
+            points = [
+                x1 + radius, y1,
+                x1 + radius, y1,
+                x2 - radius, y1,
+                x2 - radius, y1,
+                x2, y1,
+                x2, y1 + radius,
+                x2, y1 + radius,
+                x2, y2 - radius,
+                x2, y2 - radius,
+                x2, y2,
+                x2 - radius, y2,
+                x2 - radius, y2,
+                x1 + radius, y2,
+                x1 + radius, y2,
+                x1, y2,
+                x1, y2 - radius,
+                x1, y2 - radius,
+                x1, y1 + radius,
+                x1, y1 + radius,
+                x1, y1
+            ]
+            return canvas.create_polygon(points, smooth=True, fill=fill, outline=outline)
+        
+        accept_canvas.update_idletasks()
+        canvas_width = accept_canvas.winfo_width()
+        accept_rect = draw_rounded_rect(accept_canvas, 2, 2, canvas_width - 2, 34, 8, 
+                                        colors["bg"])
+        
+        accept_text = accept_canvas.create_text(canvas_width // 2, 18, 
+                                               text=action_text,
+                                               font=('SF Pro Text', 10, 'bold'),
+                                               fill=colors["fg"])
+        
+        # Bind click events
+        def on_accept_click(e):
+            accept_suggestion()
+        accept_canvas.bind('<Button-1>', on_accept_click)
+        accept_canvas.configure(cursor='hand2')
+        
+        # Hover effects
+        def on_enter_accept(e):
+            # Slightly darker on hover
+            hover_color = colors["bg"]
+            accept_canvas.itemconfig(accept_rect, fill=hover_color)
+        def on_leave_accept(e):
+            accept_canvas.itemconfig(accept_rect, fill=colors["bg"])
+        accept_canvas.bind('<Enter>', on_enter_accept)
+        accept_canvas.bind('<Leave>', on_leave_accept)
+        
+        # Dismiss button with rounded corners
+        dismiss_frame = tk.Frame(button_frame, bg=self.colors['bg_primary'])
+        dismiss_frame.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
+        
+        dismiss_canvas = tk.Canvas(dismiss_frame, height=36, bg=self.colors['bg_primary'],
+                                  highlightthickness=0)
+        dismiss_canvas.pack(fill=tk.X)
+        
+        dismiss_canvas.update_idletasks()
+        canvas_width = dismiss_canvas.winfo_width()
+        dismiss_rect = draw_rounded_rect(dismiss_canvas, 2, 2, canvas_width - 2, 34, 8,
+                                         self.colors['bg_secondary'])
+        
+        dismiss_text = dismiss_canvas.create_text(canvas_width // 2, 18,
+                                                 text="Dismiss",
+                                                 font=('SF Pro Text', 10),
+                                                 fill=self.colors['text_secondary'])
+        
+        def on_dismiss_click(e):
+            dismiss_suggestion()
+        dismiss_canvas.bind('<Button-1>', on_dismiss_click)
+        dismiss_canvas.configure(cursor='hand2')
+        
+        # Hover effects for dismiss
+        def on_enter_dismiss(e):
+            dismiss_canvas.itemconfig(dismiss_rect, fill=self.colors['border'])
+        def on_leave_dismiss(e):
+            dismiss_canvas.itemconfig(dismiss_rect, fill=self.colors['bg_secondary'])
+        dismiss_canvas.bind('<Enter>', on_enter_dismiss)
+        dismiss_canvas.bind('<Leave>', on_leave_dismiss)
         
         # Make window stay on top
         notification.attributes('-topmost', True)
@@ -2280,7 +3196,7 @@ class NotificationGUI:
     
     def trigger_breathing_game(self, reason=None, duration_minutes=None):
         """Trigger breathing exercise (called by AI assistant)"""
-        print(f"🤖 AI Assistant: Starting breathing exercise - {reason}")
+        print(f"AI Assistant: Starting breathing exercise - {reason}")
         
         # Create fullscreen overlay window for breathing exercise
         overlay = tk.Toplevel(self.root)
@@ -2293,7 +3209,7 @@ class NotificationGUI:
     
     def play_calm_audio(self, reason=None, duration_minutes=None):
         """Play calm music (called by AI assistant)"""
-        print(f"🤖 AI Assistant: Playing calm music - {reason}")
+        print(f"AI Assistant: Playing calm music - {reason}")
         try:
             import subprocess
             import os
@@ -2305,27 +3221,27 @@ class NotificationGUI:
                     pygame.mixer.init()
                     pygame.mixer.music.load(music_path)
                     pygame.mixer.music.play(-1)  # Loop
-                    print(f"🎵 Playing calm music...")
+                    print(f"Playing calm music...")
                 except ImportError:
                     subprocess.Popen(['afplay', music_path])
-                    print(f"🎵 Playing calm music (afplay)...")
+                    print(f"Playing calm music (afplay)...")
             else:
-                print(f"⚠️  Music file not found: {music_path}")
+                print(f"Music file not found: {music_path}")
         except Exception as e:
-            print(f"⚠️  Could not play music: {e}")
+            print(f"Could not play music: {e}")
     
     def enable_dnd_mode(self, reason=None, duration_minutes=None):
         """Enable Do Not Disturb mode (called by AI assistant)"""
-        print(f"🤖 AI Assistant: Enabling DND mode for {duration_minutes} minutes - {reason}")
+        print(f"AI Assistant: Enabling DND mode for {duration_minutes} minutes - {reason}")
         # Trigger DND via flow amplifier
         if self.flow_amplifier and self.flow_amplifier.is_amplifying:
-            print("✓ DND already active via amplification")
+            print("DND already active via amplification")
         else:
             messagebox.showinfo("DND Mode", f"AI suggests enabling Do Not Disturb:\n\n{reason}\n\nDuration: {duration_minutes} minutes")
     
     def show_break_suggestion(self, reason=None, break_type=None, duration_minutes=None):
         """Show break suggestion (called by AI assistant)"""
-        print(f"🤖 AI Assistant: Suggesting {break_type} break for {duration_minutes} minutes - {reason}")
+        print(f"AI Assistant: Suggesting {break_type} break for {duration_minutes} minutes - {reason}")
         messagebox.showinfo("Break Suggestion", 
                            f"AI recommends taking a break:\n\n"
                            f"Type: {break_type}\n"
@@ -2334,14 +3250,14 @@ class NotificationGUI:
     
     def show_encouragement_message(self, message=None, context=None):
         """Show encouragement message (called by AI assistant)"""
-        print(f"🤖 AI Assistant: {message}")
+        print(f"AI Assistant: {message}")
         # Show as a brief notification overlay
         notification = tk.Toplevel(self.root)
         notification.title("Encouragement")
         notification.geometry("400x150")
         notification.configure(bg='#4CAF50')
         
-        label = tk.Label(notification, text=f"✨ {message}", 
+        label = tk.Label(notification, text=message, 
                         font=('Arial', 14, 'bold'),
                         bg='#4CAF50', fg='white',
                         wraplength=350, justify=tk.CENTER)

@@ -22,7 +22,7 @@ def main(eye_defender_enabled=True):
         eye_defender_enabled: Whether to automatically start Eye Defender (default: True)
     """
     print("\n" + "="*60)
-    print("🎯 PRISM - AI Flow State Facilitator")
+    print("PRISM - AI Flow State Facilitator")
     print("="*60)
     print("\nInitializing system...\n")
     
@@ -43,9 +43,9 @@ def main(eye_defender_enabled=True):
     flow_amplifier = monitor.get_flow_amplifier()
     
     if flow_amplifier:
-        print("\n🎨 Launching GUI...")
+        print("\nLaunching GUI...")
         if eye_defender_enabled:
-            print("👁️  Eye Defender will auto-start...")
+            print("Eye Defender will auto-start...")
         
         # Create and run GUI
         gui = NotificationGUI(flow_amplifier, monitor, auto_start_eye_defender=eye_defender_enabled)
@@ -58,7 +58,7 @@ def main(eye_defender_enabled=True):
             monitor.stop()
             
             # Print final statistics
-            print("\n📊 Session Summary:")
+            print("\nSession Summary:")
             trends = monitor.get_trends(window_minutes=60)
             print(f"   Average Flow Score: {trends['avg_flow_score']}")
             print(f"   Time in Flow: {trends['flow_percentage']:.1f}%")
@@ -67,11 +67,11 @@ def main(eye_defender_enabled=True):
             
             if flow_amplifier:
                 amp_stats = flow_amplifier.get_statistics()
-                print(f"\n🛡️  Amplification Summary:")
+                print(f"\nAmplification Summary:")
                 print(f"   Notifications Suppressed: {amp_stats['suppressed_count']}")
                 print(f"   Apps Banished: {amp_stats['banished_apps']}")
     else:
-        print("⚠️  Flow amplification not available")
+        print("Flow amplification not available")
         print("Running in monitoring-only mode")
         
         try:

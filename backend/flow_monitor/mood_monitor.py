@@ -89,7 +89,7 @@ class MoodMonitor:
             else:
                 return analysis['dominant_emotion']
         except ImportError:
-            print("⚠️  DeepFace not installed. Install with: pip install deepface")
+            print("DeepFace not installed. Install with: pip install deepface")
             return "unavailable"
         except Exception as e:
             # Silently handle errors (no face, bad frame, etc.)
@@ -97,21 +97,21 @@ class MoodMonitor:
     
     def monitor_loop(self):
         """Main monitoring loop"""
-        print("👁️  Mood Monitor starting...")
+        print("Mood Monitor starting...")
         
         # Initialize webcam
         try:
             self.cap = cv2.VideoCapture(0)
             if not self.cap.isOpened():
-                print("⚠️  Could not open webcam")
+                print("Could not open webcam")
                 self.running = False
                 return
         except Exception as e:
-            print(f"⚠️  Error opening webcam: {e}")
+            print(f"Error opening webcam: {e}")
             self.running = False
             return
         
-        print("✓ Webcam initialized")
+        print("Webcam initialized")
         
         while self.running:
             try:
@@ -136,7 +136,7 @@ class MoodMonitor:
         # Cleanup
         if self.cap:
             self.cap.release()
-        print("✓ Mood monitor stopped")
+        print("Mood monitor stopped")
     
     def _process_emotion(self, emotion):
         """Process detected emotion and trigger appropriate responses"""
@@ -168,22 +168,22 @@ class MoodMonitor:
             
             # Trigger appropriate response
             if emotion in ['angry', 'disgust']:
-                print(f"⚠️  Frustration detected ({emotion}). User may be stuck.")
+                print(f"Frustration detected ({emotion}). User may be stuck.")
                 mood_data['alert'] = 'frustration'
                 mood_data['suggestion'] = 'Take a break or try a different approach'
                 
             elif emotion == 'neutral':
                 if old_mood in ['angry', 'disgust', 'fear', 'sad']:
-                    print(f"✅ Mood improved: {old_mood} → {emotion}")
+                    print(f"Mood improved: {old_mood} -> {emotion}")
                 mood_data['alert'] = 'focused'
                 
             elif emotion in ['fear', 'sad']:
-                print(f"💭 User appears {emotion}. May need encouragement.")
+                print(f"User appears {emotion}. May need encouragement.")
                 mood_data['alert'] = 'stressed'
                 mood_data['suggestion'] = 'Consider taking a short break'
                 
             elif emotion == 'happy':
-                print(f"😊 Positive mood detected ({emotion})")
+                print(f"Positive mood detected ({emotion})")
                 mood_data['alert'] = 'positive'
             
             # Trigger callbacks
@@ -289,11 +289,11 @@ class MoodMonitor:
     def start(self):
         """Start mood monitoring"""
         if self.running:
-            print("⚠️  Mood monitor already running")
+            print("Mood monitor already running")
             return
         
         print("\n" + "="*60)
-        print("👁️  MOOD MONITOR ACTIVATED")
+        print("MOOD MONITOR ACTIVATED")
         print("="*60)
         print(f"\nCheck Interval: Every {self.check_interval} seconds")
         print("Monitoring facial expressions for emotional state...")
@@ -309,7 +309,7 @@ class MoodMonitor:
             return
         
         print("\n" + "="*60)
-        print("👁️  MOOD MONITOR DEACTIVATED")
+        print("MOOD MONITOR DEACTIVATED")
         print("="*60)
         
         self.running = False
@@ -318,7 +318,7 @@ class MoodMonitor:
         
         # Print statistics
         stats = self.get_statistics()
-        print(f"\n📊 Session Statistics:")
+        print(f"\nSession Statistics:")
         print(f"   Total Checks: {stats['total_checks']}")
         print(f"   Current Mood: {stats['current_mood']}")
         print(f"   Frustration Events: {stats['frustration_count']}")
@@ -339,7 +339,7 @@ class MoodMonitor:
             self.frustration_count = 0
             self.positive_count = 0
             self.total_checks = 0
-            print("✓ Mood monitor reset")
+            print("Mood monitor reset")
 
 
 if __name__ == "__main__":
@@ -347,7 +347,7 @@ if __name__ == "__main__":
     monitor = MoodMonitor(check_interval=3)
     
     def on_mood_change(mood_data):
-        print(f"🎭 Mood Event: {mood_data['emotion']} ({mood_data['category']})")
+        print(f"Mood Event: {mood_data['emotion']} ({mood_data['category']})")
         if 'alert' in mood_data:
             print(f"   Alert: {mood_data['alert']}")
         if 'suggestion' in mood_data:
@@ -367,11 +367,11 @@ if __name__ == "__main__":
             stats = monitor.get_statistics()
             trend = monitor.get_mood_trend(window_minutes=5)
             
-            print(f"\n📊 Status Update:")
+            print(f"\nStatus Update:")
             print(f"   Current: {stats['current_mood']}")
             print(f"   Trend: {trend['trend']} (dominant: {trend['dominant_mood']})")
             print(f"   Frustration Level: {trend['frustration_level']:.1f}%\n")
             
     except KeyboardInterrupt:
         monitor.stop()
-        print("\n✓ Mood monitor test completed")
+        print("\nMood monitor test completed")

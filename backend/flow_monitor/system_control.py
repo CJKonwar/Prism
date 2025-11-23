@@ -50,14 +50,14 @@ class DoNotDisturbController:
             ], capture_output=True, text=True, timeout=5)
             
             self.is_enabled = True
-            print("✓ Do Not Disturb enabled")
+            print("Do Not Disturb enabled")
             return True
             
         except subprocess.TimeoutExpired:
-            print("⚠️  DND shortcut timed out, trying alternative method")
+            print("DND shortcut timed out, trying alternative method")
             return self._enable_dnd_alternative()
         except Exception as e:
-            print(f"⚠️  Could not enable Do Not Disturb: {e}")
+            print(f"Could not enable Do Not Disturb: {e}")
             return self._enable_dnd_alternative()
     
     def _enable_dnd_alternative(self) -> bool:
@@ -75,7 +75,7 @@ class DoNotDisturbController:
             self.is_enabled = True
             return True
         except:
-            print("⚠️  All DND methods failed - proceeding without DND")
+            print("All DND methods failed - proceeding without DND")
             return False
     
     def disable(self) -> bool:
@@ -92,11 +92,11 @@ class DoNotDisturbController:
             ], capture_output=True, text=True, timeout=5)
             
             self.is_enabled = False
-            print("✓ Do Not Disturb disabled")
+            print("Do Not Disturb disabled")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not disable Do Not Disturb: {e}")
+            print(f"Could not disable Do Not Disturb: {e}")
             self.is_enabled = False
             return False
     
@@ -195,11 +195,11 @@ class VirtualDesktopController:
             if app_name not in self.banished_apps:
                 self.banished_apps.append(app_name)
             
-            print(f"✓ Hidden app: {app_name}")
+            print(f"Hidden app: {app_name}")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not hide app {app_name}: {e}")
+            print(f"Could not hide app {app_name}: {e}")
             return False
     
     def show_app(self, app_name: str) -> bool:
@@ -225,11 +225,11 @@ class VirtualDesktopController:
             if app_name in self.banished_apps:
                 self.banished_apps.remove(app_name)
             
-            print(f"✓ Restored app: {app_name}")
+            print(f"Restored app: {app_name}")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not show app {app_name}: {e}")
+            print(f"Could not show app {app_name}: {e}")
             return False
     
     def minimize_app(self, app_name: str) -> bool:
@@ -256,11 +256,11 @@ class VirtualDesktopController:
             if app_name not in self.banished_apps:
                 self.banished_apps.append(app_name)
             
-            print(f"✓ Minimized app: {app_name}")
+            print(f"Minimized app: {app_name}")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not minimize app {app_name}: {e}")
+            print(f"Could not minimize app {app_name}: {e}")
             return False
     
     def restore_app(self, app_name: str) -> bool:
@@ -288,11 +288,11 @@ class VirtualDesktopController:
             if app_name in self.banished_apps:
                 self.banished_apps.remove(app_name)
             
-            print(f"✓ Restored app: {app_name}")
+            print(f"Restored app: {app_name}")
             return True
             
         except Exception as e:
-            print(f"⚠️  Could not restore app {app_name}: {e}")
+            print(f"Could not restore app {app_name}: {e}")
             return False
     
     def get_banished_apps(self) -> List[str]:

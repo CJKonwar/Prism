@@ -17,7 +17,7 @@ from flow_monitor.gui import NotificationGUI
 def main():
     """Main entry point with whitelist mode"""
     print("\n" + "="*60)
-    print("🔒 PRISM - Whitelist Mode")
+    print("PRISM - Whitelist Mode")
     print("="*60)
     print("\nWhitelist mode strictly enforces allowed apps only.")
     print("All other apps will be automatically minimized.\n")
@@ -37,9 +37,9 @@ def main():
                 print(" Please add at least one app!")
                 continue
         allowed_apps.append(app)
-        print(f"  ✓ Added: {app}")
+        print(f"  Added: {app}")
     
-    print(f"\n✓ {len(allowed_apps)} apps allowed")
+    print(f"\n{len(allowed_apps)} apps allowed")
     print("\nInitializing system...\n")
     
     # Initialize the monitoring system with whitelist mode
@@ -58,7 +58,7 @@ def main():
     flow_amplifier = monitor.get_flow_amplifier()
     
     if flow_amplifier:
-        print("\n🎨 Launching GUI...")
+        print("\nLaunching GUI...")
         
         # Create and run GUI
         gui = NotificationGUI(flow_amplifier, monitor)
@@ -71,7 +71,7 @@ def main():
             monitor.stop()
             
             # Print final statistics
-            print("\n📊 Session Summary:")
+            print("\nSession Summary:")
             trends = monitor.get_trends(window_minutes=60)
             print(f"   Average Flow Score: {trends['avg_flow_score']}")
             print(f"   Time in Flow: {trends['flow_percentage']:.1f}%")
@@ -80,7 +80,7 @@ def main():
             whitelist_controller = monitor.get_whitelist_controller()
             if whitelist_controller:
                 stats = whitelist_controller.get_statistics()
-                print(f"\n🔒 Whitelist Summary:")
+                print(f"\nWhitelist Summary:")
                 print(f"   Violations Blocked: {stats['violation_count']}")
                 print(f"   Unauthorized Apps Minimized: {stats['minimized_apps']}")
 

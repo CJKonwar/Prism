@@ -186,7 +186,7 @@ class ApplicationScanner:
             return []
             
         except Exception as e:
-            print(f"⚠️  Error getting running apps: {e}")
+            print(f"Error getting running apps: {e}")
             return []
     
     def get_running_apps_detailed(self) -> List[Dict[str, str]]:

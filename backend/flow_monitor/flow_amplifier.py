@@ -86,23 +86,23 @@ class FlowAmplifier:
             self.amplification_start_time = time.time()
             
             print("\n" + "="*60)
-            print("🔥 FLOW STATE AMPLIFICATION ACTIVATED")
+            print("FLOW STATE AMPLIFICATION ACTIVATED")
             print("="*60)
             
             # 1. Enable Do Not Disturb
-            print("\n📵 Activating Do Not Disturb mode...")
+            print("\nActivating Do Not Disturb mode...")
             self.dnd_controller.enable()
             
             # 2. Identify and banish distracting apps
             if flow_level >= 3:  # FLOW or DEEP_FLOW
-                print("\n👻 Activating Phantom Desktop...")
+                print("\nActivating Phantom Desktop...")
                 self._banish_distracting_apps()
             
             # 3. Start notification filtering
-            print("\n🛡️  Smart Notification Firewall active")
+            print("\nSmart Notification Firewall active")
             print("    Only critical notifications will be shown")
             
-            print("\n✓ Flow amplification system engaged")
+            print("\nFlow amplification system engaged")
             print("="*60 + "\n")
     
     def stop_amplification(self):
@@ -114,24 +114,24 @@ class FlowAmplifier:
             duration = time.time() - self.amplification_start_time if self.amplification_start_time else 0
             
             print("\n" + "="*60)
-            print("🔓 FLOW STATE AMPLIFICATION DEACTIVATED")
+            print("FLOW STATE AMPLIFICATION DEACTIVATED")
             print("="*60)
             print(f"\n⏱️  Flow session duration: {duration/60:.1f} minutes")
             
             # 1. Disable Do Not Disturb
-            print("\n📳 Restoring notifications...")
+            print("\nRestoring notifications...")
             self.dnd_controller.disable()
             
             # 2. Restore banished apps
-            print("\n🔄 Restoring banished apps...")
+            print("\nRestoring banished apps...")
             self._restore_banished_apps()
             
             # 3. Show summary
-            print(f"\n📊 Session Summary:")
+            print(f"\nSession Summary:")
             print(f"    Notifications suppressed: {len(self.suppressed_notifications)}")
             print(f"    Apps banished: {len(self.banished_apps)}")
             
-            print("\n✓ Normal mode restored")
+            print("\nNormal mode restored")
             print("="*60 + "\n")
             
             self.is_amplifying = False
@@ -160,22 +160,22 @@ class FlowAmplifier:
                 if success:
                     self.banished_apps.append(app_name)
                     banished_count += 1
-                    print(f"    👻 Banished: {app_name}")
+                    print(f"    Banished: {app_name}")
         
         if banished_count == 0:
-            print("    ✓ No distracting apps currently running")
+            print("    No distracting apps currently running")
         else:
-            print(f"    ✓ Banished {banished_count} distracting app(s)")
+            print(f"    Banished {banished_count} distracting app(s)")
     
     def _restore_banished_apps(self):
         """Restore all banished apps"""
         if not self.banished_apps:
-            print("    ✓ No apps to restore")
+            print("    No apps to restore")
             return
         
         for app_name in self.banished_apps.copy():
             self.desktop_controller.restore_app(app_name)
-            print(f"    🔄 Restored: {app_name}")
+            print(f"    Restored: {app_name}")
         
         self.banished_apps.clear()
     

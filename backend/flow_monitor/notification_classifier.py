@@ -65,13 +65,13 @@ class NotificationClassifier:
             
             # For now, we'll use rule-based + sentiment as a proxy
             # In production, you'd fine-tune on labeled notification data
-            print("✓ ML components loaded (using rule-based classification with ML augmentation)")
+            print("ML components loaded (using rule-based classification with ML augmentation)")
             
         except ImportError:
-            print("⚠️  transformers library not available, using rule-based classification")
+            print("transformers library not available, using rule-based classification")
             self.use_ml = False
         except Exception as e:
-            print(f"⚠️  Could not load ML model: {e}, using rule-based classification")
+            print(f"Could not load ML model: {e}, using rule-based classification")
             self.use_ml = False
     
     def classify(self, title: str, subtitle: str, body: str, app_name: str) -> Tuple[bool, float, str]:

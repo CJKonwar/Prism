@@ -11,7 +11,7 @@ try:
     import Quartz
     import objc
 except ImportError:
-    print("⚠️  Eye Defender requires pyobjc. Install with: pip install pyobjc")
+    print("Eye Defender requires pyobjc. Install with: pip install pyobjc")
 
 
 class EyeDefender:
@@ -110,7 +110,7 @@ class EyeDefender:
             message_frame.pack()
             
             title_label = tk.Label(message_frame, 
-                                  text="👁️ Eye Break Time!", 
+                                  text="Eye Break Time!", 
                                   font=('Arial', 36, 'bold'),
                                   fg='#4CAF50',
                                   bg='#1e1e1e')
@@ -180,7 +180,7 @@ class EyeDefender:
             # Play sound notification
             sound_script = f'''
             display notification "Look 20 feet away for {self.blur_duration_seconds} seconds" ¬
-                with title "👁️ Eye Break Time!" ¬
+                with title "Eye Break Time!" ¬
                 sound name "Glass"
             '''
             subprocess.Popen(['osascript', '-e', sound_script], 
@@ -191,13 +191,13 @@ class EyeDefender:
             blur_window.mainloop()
             
         except Exception as e:
-            print(f"⚠️  Eye Defender error: {e}")
+            print(f"Eye Defender error: {e}")
             # Fallback to just notification
             try:
                 import subprocess
                 script = f'''
                 display notification "Look 20 feet away for {self.blur_duration_seconds} seconds" ¬
-                    with title "👁️ Eye Break Time!" ¬
+                    with title "Eye Break Time!" ¬
                     sound name "Glass"
                 '''
                 subprocess.run(['osascript', '-e', script], 
@@ -207,7 +207,7 @@ class EyeDefender:
     
     def monitor_loop(self):
         """Main monitoring loop"""
-        print(f"👁️  Eye Defender monitoring started. First reminder in {self.interval_minutes} minutes...")
+        print(f"Eye Defender monitoring started. First reminder in {self.interval_minutes} minutes...")
         
         while self.running:
             try:
@@ -228,7 +228,7 @@ class EyeDefender:
                         with self.lock:
                             if self.interval_changed:
                                 self.interval_changed = False
-                                print(f"⚙️  Interval changed - restarting timer with {self.interval_minutes} minutes...")
+                                print(f"Interval changed - restarting timer with {self.interval_minutes} minutes...")
                                 break  # Exit inner loop to restart with new interval
                             self.time_remaining_seconds = interval_seconds - elapsed
                         
@@ -238,7 +238,7 @@ class EyeDefender:
                     
                     if self.running and not self.paused:
                         # Trigger reminder via callback (on main thread)
-                        print(f"👁️  {self.interval_minutes} minutes passed - triggering eye break...")
+                        print(f"{self.interval_minutes} minutes passed - triggering eye break...")
                         with self.lock:
                             self.time_remaining_seconds = 0
                             self.total_reminders += 1
@@ -270,7 +270,7 @@ class EyeDefender:
             return
         
         print("\n" + "="*60)
-        print("👁️  EYE DEFENDER ACTIVATED")
+        print("EYE DEFENDER ACTIVATED")
         print("="*60)
         print(f"\nReminder Interval: Every {self.interval_minutes} minutes")
         print(f"Break Duration: {self.blur_duration_seconds} seconds")
@@ -293,9 +293,9 @@ class EyeDefender:
             self.monitor_thread.join(timeout=3)
         
         print("\n" + "="*60)
-        print("👁️  EYE DEFENDER DEACTIVATED")
+        print("EYE DEFENDER DEACTIVATED")
         print("="*60)
-        print(f"\n📊 Session Statistics:")
+        print(f"\nSession Statistics:")
         print(f"   Total reminders: {self.total_reminders}")
         if self.last_reminder_time:
             print(f"   Last reminder: {self.last_reminder_time.strftime('%H:%M:%S')}")
@@ -305,18 +305,18 @@ class EyeDefender:
         """Pause reminders temporarily"""
         with self.lock:
             self.paused = True
-        print("⏸️  Eye Defender paused")
+        print("Eye Defender paused")
     
     def resume(self):
         """Resume reminders"""
         with self.lock:
             self.paused = False
-        print("▶️  Eye Defender resumed")
+        print("Eye Defender resumed")
     
     def trigger_manual_break(self):
         """Manually trigger an eye break"""
         if self.running and self.blur_callback:
-            print("👁️  Manual eye break triggered")
+            print("Manual eye break triggered")
             with self.lock:
                 self.total_reminders += 1
                 self.last_reminder_time = datetime.now()
@@ -330,7 +330,7 @@ class EyeDefender:
             import subprocess
             sound_script = f'''
             display notification "Look 20 feet away for {self.blur_duration_seconds} seconds" ¬
-                with title "👁️ Eye Break Time!" ¬
+                with title "Eye Break Time!" ¬
                 sound name "Glass"
             '''
             subprocess.Popen(['osascript', '-e', sound_script], 

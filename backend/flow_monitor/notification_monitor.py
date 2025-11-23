@@ -195,20 +195,20 @@ class NotificationMonitor:
     def start(self):
         """Start monitoring notifications"""
         if not MACOS_AVAILABLE:
-            print("⚠️  Notification monitoring not available (macOS only)")
+            print("Notification monitoring not available (macOS only)")
             return
         
         self.running = True
         self.monitor_thread = Thread(target=self.monitor_loop, daemon=True)
         self.monitor_thread.start()
-        print("✓ Notification monitor started")
+        print("Notification monitor started")
     
     def stop(self):
         """Stop monitoring notifications"""
         self.running = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=2)
-        print("✓ Notification monitor stopped")
+        print("Notification monitor stopped")
     
     def reset(self):
         """Reset notification counters"""
