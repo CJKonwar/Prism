@@ -150,7 +150,7 @@ class AIAssistant:
                         "duration_minutes": {
                             "type": "integer",
                             "description": "How long to play (5-30 minutes)",
-                            "default": 0.17
+                            "default": 0.08
                         }
                     },
                     "required": ["reason"]
@@ -265,11 +265,15 @@ class AIAssistant:
         print("AI Assistant started")
     
     def stop(self):
-        """Stop the AI assistant"""
+        """Stop the AI assistant and cleanup music"""
         if not self.running:
             return
         
         self.running = False
+        
+        # Stop any playing music
+        self.stop_music()
+        
         print("AI Assistant stopped")
     
     def _analysis_loop(self):
@@ -474,8 +478,8 @@ Respond by calling show_suggestion_notification tool."""
         with self.lock:
             return self.conversation_history.copy()
     
-    def play_calm_music(self, reason="stress relief", duration_minutes=0.17):
-        """Play calm music from assets folder"""
+    def play_calm_music(self, reason="stress relief", duration_minutes=0.08):
+        """Play calm music from assets folder (5 seconds default)"""
         try:
             if self.music_playing:
                 print("Music already playing")
