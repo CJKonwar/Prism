@@ -6,3 +6,5 @@ frontend/.vite/
 backend/__pycache__/
 backend/flow_monitor/__pycache__/
 backend/flow_monitor/migrations/
+backend/.env
+session_logs/

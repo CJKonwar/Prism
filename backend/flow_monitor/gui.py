@@ -51,6 +51,9 @@ class NotificationGUI:
         # Set blur callback for Eye Defender (must run on main thread)
         self.eye_defender.set_blur_callback(lambda: self.root.after(0, self.show_eye_break_overlay))
         
+        # Register AI assistant callbacks if available
+        self.setup_ai_assistant_callbacks()
+        
         # Initialize Eye Defender with slider values after UI is created
         self.root.after(100, self._initialize_eye_defender_from_gui)
         
@@ -482,6 +485,22 @@ class NotificationGUI:
         
         ttk.Button(button_frame, text="👁️ Take Break Now", 
                   command=self.manual_eye_break).pack(side=tk.LEFT)
+    
+    def setup_ai_assistant_callbacks(self):
+        """Register callbacks for AI assistant tool execution"""
+        ai_assistant = self.flow_monitor.get_ai_assistant()
+        if ai_assistant:
+            # Register primary notification callback
+            ai_assistant.register_callback('show_suggestion_notification', self.show_ai_suggestion_notification)
+            
+            # Register all available tool callbacks (for direct execution if needed)
+            ai_assistant.register_callback('start_breathing_exercise', self.trigger_breathing_game)
+            ai_assistant.register_callback('trigger_eye_break', self.manual_eye_break)
+            ai_assistant.register_callback('play_calm_music', self.play_calm_audio)
+            ai_assistant.register_callback('enable_do_not_disturb', self.enable_dnd_mode)
+            ai_assistant.register_callback('suggest_break', self.show_break_suggestion)
+            ai_assistant.register_callback('provide_encouragement', self.show_encouragement_message)
+            print("✓ AI assistant callbacks registered")
     
     def _initialize_eye_defender_from_gui(self):
         """Initialize Eye Defender with current slider values (silent, no auto-start)"""
@@ -2124,6 +2143,212 @@ class NotificationGUI:
         
         text_widget.insert(tk.END, trend_text)
         text_widget.config(state=tk.DISABLED)
+    
+    # === AI Assistant Callback Methods ===
+    
+    def show_ai_suggestion_notification(self, title=None, message=None, suggestion_type=None, action_params=None, severity="info"):
+        """
+        Show AI suggestion notification with action button
+        User can choose to accept or dismiss the suggestion
+        """
+        print(f"🤖 AI Suggestion: {title} - {message}")
+        
+        # Create notification window
+        notification = tk.Toplevel(self.root)
+        notification.title("AI Assistant Suggestion")
+        notification.geometry("500x250")
+        notification.resizable(False, False)
+        
+        # Set colors based on severity
+        severity_colors = {
+            "info": {"bg": "#2196F3", "fg": "white"},
+            "warning": {"bg": "#FF9800", "fg": "white"},
+            "urgent": {"bg": "#F44336", "fg": "white"}
+        }
+        colors = severity_colors.get(severity, severity_colors["info"])
+        
+        # Header frame
+        header_frame = tk.Frame(notification, bg=colors["bg"])
+        header_frame.pack(fill=tk.X, pady=0)
+        
+        # Severity icon
+        severity_icons = {
+            "info": "ℹ️",
+            "warning": "⚠️",
+            "urgent": "🚨"
+        }
+        icon = severity_icons.get(severity, "ℹ️")
+        
+        # Title with icon
+        title_label = tk.Label(header_frame, text=f"{icon} {title}", 
+                              font=('Arial', 16, 'bold'),
+                              bg=colors["bg"], fg=colors["fg"],
+                              pady=15)
+        title_label.pack()
+        
+        # Message frame
+        message_frame = tk.Frame(notification, bg='white')
+        message_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+        
+        # Message text
+        message_label = tk.Label(message_frame, text=message,
+                                font=('Arial', 12),
+                                bg='white', fg='#333333',
+                                wraplength=450, justify=tk.LEFT)
+        message_label.pack(pady=10)
+        
+        # Button frame
+        button_frame = tk.Frame(notification, bg='white')
+        button_frame.pack(fill=tk.X, padx=20, pady=(0, 20))
+        
+        # Action button
+        action_text_map = {
+            "breathing_exercise": "🫁 Start Breathing Exercise",
+            "eye_break": "👁️ Take Eye Break",
+            "calm_music": "🎵 Play Calm Music",
+            "dnd_mode": "🚫 Enable DND Mode",
+            "take_break": "☕ Take a Break",
+            "block_app": "📱 Block App",
+            "encouragement": "✨ Got it!"
+        }
+        action_text = action_text_map.get(suggestion_type, "Accept")
+        
+        def accept_suggestion():
+            """Execute the suggested action"""
+            notification.destroy()
+            print(f"✓ User accepted suggestion: {suggestion_type}")
+            
+            # Map suggestion types to actual callback methods
+            action_map = {
+                "breathing_exercise": lambda: self.trigger_breathing_game(
+                    reason=action_params.get('reason') if action_params else None,
+                    duration_minutes=action_params.get('duration_minutes') if action_params else None
+                ),
+                "eye_break": lambda: self.manual_eye_break(),
+                "calm_music": lambda: self.play_calm_audio(
+                    reason=action_params.get('reason') if action_params else None,
+                    duration_minutes=action_params.get('duration_minutes') if action_params else None
+                ),
+                "dnd_mode": lambda: self.enable_dnd_mode(
+                    reason=action_params.get('reason') if action_params else None,
+                    duration_minutes=action_params.get('duration_minutes') if action_params else None
+                ),
+                "take_break": lambda: self.show_break_suggestion(
+                    reason=action_params.get('reason') if action_params else None,
+                    break_type=action_params.get('break_type') if action_params else "short_break",
+                    duration_minutes=action_params.get('duration_minutes') if action_params else None
+                ),
+                "block_app": lambda: print(f"⚠️  App blocking not implemented yet"),
+                "encouragement": lambda: print("✨ Keep up the great work!")
+            }
+            
+            # Execute the action
+            if suggestion_type in action_map:
+                action_map[suggestion_type]()
+        
+        def dismiss_suggestion():
+            """Dismiss the notification"""
+            notification.destroy()
+            print(f"⏭️  User dismissed suggestion: {suggestion_type}")
+        
+        accept_btn = tk.Button(button_frame, text=action_text,
+                              font=('Arial', 11, 'bold'),
+                              bg=colors["bg"], fg=colors["fg"],
+                              activebackground=colors["bg"],
+                              activeforeground=colors["fg"],
+                              command=accept_suggestion,
+                              cursor='hand2',
+                              padx=20, pady=10)
+        accept_btn.pack(side=tk.LEFT, expand=True, fill=tk.X, padx=(0, 5))
+        
+        dismiss_btn = tk.Button(button_frame, text="✕ Dismiss",
+                               font=('Arial', 11),
+                               bg='#E0E0E0', fg='#333333',
+                               activebackground='#BDBDBD',
+                               command=dismiss_suggestion,
+                               cursor='hand2',
+                               padx=20, pady=10)
+        dismiss_btn.pack(side=tk.RIGHT, expand=True, fill=tk.X, padx=(5, 0))
+        
+        # Make window stay on top
+        notification.attributes('-topmost', True)
+        notification.lift()
+        notification.focus_force()
+        
+        # Auto-dismiss after 30 seconds
+        notification.after(30000, lambda: notification.destroy() if notification.winfo_exists() else None)
+    
+    def trigger_breathing_game(self, reason=None, duration_minutes=None):
+        """Trigger breathing exercise (called by AI assistant)"""
+        print(f"🤖 AI Assistant: Starting breathing exercise - {reason}")
+        
+        # Create fullscreen overlay window for breathing exercise
+        overlay = tk.Toplevel(self.root)
+        overlay.attributes('-fullscreen', True)
+        overlay.attributes('-topmost', True)
+        overlay.configure(bg='#0a0e27')
+        
+        # Show the breathing exercise
+        self.show_breathing_exercise(overlay)
+    
+    def play_calm_audio(self, reason=None, duration_minutes=None):
+        """Play calm music (called by AI assistant)"""
+        print(f"🤖 AI Assistant: Playing calm music - {reason}")
+        try:
+            import subprocess
+            import os
+            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            music_path = os.path.join(current_dir, 'assets', 'calm_music.mp3')
+            if os.path.exists(music_path):
+                try:
+                    import pygame
+                    pygame.mixer.init()
+                    pygame.mixer.music.load(music_path)
+                    pygame.mixer.music.play(-1)  # Loop
+                    print(f"🎵 Playing calm music...")
+                except ImportError:
+                    subprocess.Popen(['afplay', music_path])
+                    print(f"🎵 Playing calm music (afplay)...")
+            else:
+                print(f"⚠️  Music file not found: {music_path}")
+        except Exception as e:
+            print(f"⚠️  Could not play music: {e}")
+    
+    def enable_dnd_mode(self, reason=None, duration_minutes=None):
+        """Enable Do Not Disturb mode (called by AI assistant)"""
+        print(f"🤖 AI Assistant: Enabling DND mode for {duration_minutes} minutes - {reason}")
+        # Trigger DND via flow amplifier
+        if self.flow_amplifier and self.flow_amplifier.is_amplifying:
+            print("✓ DND already active via amplification")
+        else:
+            messagebox.showinfo("DND Mode", f"AI suggests enabling Do Not Disturb:\n\n{reason}\n\nDuration: {duration_minutes} minutes")
+    
+    def show_break_suggestion(self, reason=None, break_type=None, duration_minutes=None):
+        """Show break suggestion (called by AI assistant)"""
+        print(f"🤖 AI Assistant: Suggesting {break_type} break for {duration_minutes} minutes - {reason}")
+        messagebox.showinfo("Break Suggestion", 
+                           f"AI recommends taking a break:\n\n"
+                           f"Type: {break_type}\n"
+                           f"Duration: {duration_minutes} minutes\n\n"
+                           f"Reason: {reason}")
+    
+    def show_encouragement_message(self, message=None, context=None):
+        """Show encouragement message (called by AI assistant)"""
+        print(f"🤖 AI Assistant: {message}")
+        # Show as a brief notification overlay
+        notification = tk.Toplevel(self.root)
+        notification.title("Encouragement")
+        notification.geometry("400x150")
+        notification.configure(bg='#4CAF50')
+        
+        label = tk.Label(notification, text=f"✨ {message}", 
+                        font=('Arial', 14, 'bold'),
+                        bg='#4CAF50', fg='white',
+                        wraplength=350, justify=tk.CENTER)
+        label.pack(expand=True, pady=20)
+        
+        # Auto-close after 5 seconds
+        notification.after(5000, notification.destroy)
     
     def quit_app(self):
         """Quit the application"""

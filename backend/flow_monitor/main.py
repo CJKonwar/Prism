@@ -14,6 +14,8 @@ from flow_monitor.notification_monitor import NotificationMonitor
 from flow_monitor.flow_amplifier import FlowAmplifier
 from flow_monitor.whitelist_controller import WhitelistController
 from flow_monitor.mood_monitor import MoodMonitor
+from flow_monitor.session_logger import SessionLogger
+from flow_monitor.ai_assistant import AIAssistant
 
 
 class FlowMonitorSystem:
@@ -21,7 +23,7 @@ class FlowMonitorSystem:
     Main system that coordinates all monitoring and analysis
     """
     
-    def __init__(self, analysis_interval=5.0, window_size=60, enable_amplification=True, whitelist_mode=False, allowed_apps=None, enable_mood_monitor=False):
+    def __init__(self, analysis_interval=5.0, window_size=60, enable_amplification=True, whitelist_mode=False, allowed_apps=None, enable_mood_monitor=False, enable_session_logging=True, enable_ai_assistant=True):
         """
         Initialize the flow monitoring system
         
@@ -32,12 +34,16 @@ class FlowMonitorSystem:
             whitelist_mode: Enable strict whitelist mode (only allow specified apps)
             allowed_apps: List of apps to allow in whitelist mode
             enable_mood_monitor: Enable webcam-based mood monitoring
+            enable_session_logging: Enable automatic session logging (default: True)
+            enable_ai_assistant: Enable AI-powered productivity assistant (default: True)
         """
         self.analysis_interval = analysis_interval
         self.window_size = window_size
         self.enable_amplification = enable_amplification
         self.whitelist_mode = whitelist_mode
         self.enable_mood_monitor = enable_mood_monitor
+        self.enable_session_logging = enable_session_logging
+        self.enable_ai_assistant = enable_ai_assistant
         
         # Initialize monitors
         self.keyboard_monitor = KeyboardMonitor(window_size=window_size)
@@ -50,6 +56,16 @@ class FlowMonitorSystem:
         self.mood_monitor = None
         if enable_mood_monitor:
             self.mood_monitor = MoodMonitor(check_interval=5)
+        
+        # Initialize session logger if enabled
+        self.session_logger = None
+        if enable_session_logging:
+            self.session_logger = SessionLogger(self, log_interval=30)
+        
+        # Initialize AI assistant if enabled (depends on session logger)
+        self.ai_assistant = None
+        if enable_ai_assistant and self.session_logger:
+            self.ai_assistant = AIAssistant(self.session_logger, check_interval=30)
         
         # Initialize whitelist controller
         self.whitelist_controller = None
@@ -179,6 +195,14 @@ class FlowMonitorSystem:
         if self.mood_monitor:
             self.mood_monitor.start()
         
+        # Start session logger if enabled
+        if self.session_logger:
+            self.session_logger.start()
+        
+        # Start AI assistant if enabled
+        if self.ai_assistant:
+            self.ai_assistant.start()
+        
         # Start all monitors
         self.keyboard_monitor.start()
         self.mouse_monitor.start()
@@ -198,6 +222,10 @@ class FlowMonitorSystem:
             print("✓ Whitelist mode active")
         if self.mood_monitor:
             print("✓ Mood monitoring active")
+        if self.session_logger:
+            print(f"✓ Session logging active → {self.session_logger.get_log_file_path()}")
+        if self.ai_assistant:
+            print("✓ AI assistant active (analyzing productivity every 30s)")
         print("="*60)
         print("\nMonitoring your flow state... (Press Ctrl+C to stop)\n")
     
@@ -220,6 +248,15 @@ class FlowMonitorSystem:
         # Stop mood monitor if active
         if self.mood_monitor:
             self.mood_monitor.stop()
+        
+        # Stop session logger if active
+        if self.session_logger:
+            self.session_logger.stop()
+        
+        # Stop AI assistant if active and save analysis log
+        if self.ai_assistant:
+            self.ai_assistant.stop()
+            self.ai_assistant.save_analysis_log()
         
         # Stop flow amplification if active
         if self.flow_amplifier and self.flow_amplifier.is_amplifying:
@@ -315,6 +352,14 @@ class FlowMonitorSystem:
     def get_mood_monitor(self):
         """Get the mood monitor instance"""
         return self.mood_monitor
+    
+    def get_session_logger(self):
+        """Get the session logger instance"""
+        return self.session_logger
+    
+    def get_ai_assistant(self):
+        """Get the AI assistant instance"""
+        return self.ai_assistant
     
     def set_allowed_apps(self, apps):
         """Update the list of allowed apps"""
