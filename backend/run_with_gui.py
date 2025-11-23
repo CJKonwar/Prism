@@ -32,7 +32,8 @@ def main(eye_defender_enabled=True):
         window_size=60,
         enable_amplification=True,
         whitelist_mode=True,  # Can be enabled from GUI
-        allowed_apps=["Code", "Terminal", "Safari", "Python"] # Will be set from GUI
+        allowed_apps=["Code", "Terminal", "Safari", "Python"],  # Will be set from GUI
+        enable_mood_monitor=True  # Enable webcam-based mood monitoring
     )
     
     # Start monitoring

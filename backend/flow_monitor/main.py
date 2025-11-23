@@ -13,6 +13,7 @@ from flow_monitor.flow_detector import FlowStateDetector
 from flow_monitor.notification_monitor import NotificationMonitor
 from flow_monitor.flow_amplifier import FlowAmplifier
 from flow_monitor.whitelist_controller import WhitelistController
+from flow_monitor.mood_monitor import MoodMonitor
 
 
 class FlowMonitorSystem:
@@ -20,7 +21,7 @@ class FlowMonitorSystem:
     Main system that coordinates all monitoring and analysis
     """
     
-    def __init__(self, analysis_interval=5.0, window_size=60, enable_amplification=True, whitelist_mode=False, allowed_apps=None):
+    def __init__(self, analysis_interval=5.0, window_size=60, enable_amplification=True, whitelist_mode=False, allowed_apps=None, enable_mood_monitor=False):
         """
         Initialize the flow monitoring system
         
@@ -30,11 +31,13 @@ class FlowMonitorSystem:
             enable_amplification: Enable flow state amplification features
             whitelist_mode: Enable strict whitelist mode (only allow specified apps)
             allowed_apps: List of apps to allow in whitelist mode
+            enable_mood_monitor: Enable webcam-based mood monitoring
         """
         self.analysis_interval = analysis_interval
         self.window_size = window_size
         self.enable_amplification = enable_amplification
         self.whitelist_mode = whitelist_mode
+        self.enable_mood_monitor = enable_mood_monitor
         
         # Initialize monitors
         self.keyboard_monitor = KeyboardMonitor(window_size=window_size)
@@ -42,6 +45,11 @@ class FlowMonitorSystem:
         self.window_monitor = WindowMonitor(window_size=window_size, allowed_apps=allowed_apps)
         self.notification_monitor = NotificationMonitor()
         self.flow_detector = FlowStateDetector(history_size=20)
+        
+        # Initialize mood monitor if enabled
+        self.mood_monitor = None
+        if enable_mood_monitor:
+            self.mood_monitor = MoodMonitor(check_interval=5)
         
         # Initialize whitelist controller
         self.whitelist_controller = None
@@ -167,6 +175,10 @@ class FlowMonitorSystem:
         if self.whitelist_controller:
             self.whitelist_controller.start()
         
+        # Start mood monitor if enabled
+        if self.mood_monitor:
+            self.mood_monitor.start()
+        
         # Start all monitors
         self.keyboard_monitor.start()
         self.mouse_monitor.start()
@@ -184,6 +196,8 @@ class FlowMonitorSystem:
             print("✓ Flow amplification ready")
         if self.whitelist_controller:
             print("✓ Whitelist mode active")
+        if self.mood_monitor:
+            print("✓ Mood monitoring active")
         print("="*60)
         print("\nMonitoring your flow state... (Press Ctrl+C to stop)\n")
     
@@ -202,6 +216,10 @@ class FlowMonitorSystem:
         # Stop whitelist controller if active
         if self.whitelist_controller:
             self.whitelist_controller.stop()
+        
+        # Stop mood monitor if active
+        if self.mood_monitor:
+            self.mood_monitor.stop()
         
         # Stop flow amplification if active
         if self.flow_amplifier and self.flow_amplifier.is_amplifying:
@@ -271,6 +289,11 @@ class FlowMonitorSystem:
         if self.whitelist_controller:
             metrics['whitelist'] = self.whitelist_controller.get_statistics()
         
+        if self.mood_monitor:
+            metrics['mood'] = self.mood_monitor.get_statistics()
+            metrics['mood_current'] = self.mood_monitor.get_current_mood()
+            metrics['mood_trend'] = self.mood_monitor.get_mood_trend(window_minutes=10)
+        
         return metrics
     
     def reset(self):
@@ -288,6 +311,10 @@ class FlowMonitorSystem:
     def get_whitelist_controller(self):
         """Get the whitelist controller instance"""
         return self.whitelist_controller
+    
+    def get_mood_monitor(self):
+        """Get the mood monitor instance"""
+        return self.mood_monitor
     
     def set_allowed_apps(self, apps):
         """Update the list of allowed apps"""

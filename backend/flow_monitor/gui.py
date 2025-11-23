@@ -58,10 +58,9 @@ class NotificationGUI:
         if self.auto_start_eye_defender:
             self.root.after(1000, self.start_eye_defender)
         
-        # Start update loop
+        # Start update loop on main thread using after()
         self.running = True
-        self.update_thread = Thread(target=self.update_loop, daemon=True)
-        self.update_thread.start()
+        self.schedule_update()
     
     def setup_styles(self):
         """Configure UI styles"""
@@ -181,6 +180,11 @@ class NotificationGUI:
         eye_tab = ttk.Frame(notebook)
         notebook.add(eye_tab, text="👁️ Eye Defender")
         self.create_eye_defender_tab(eye_tab)
+        
+        # Tab 6: Mood Monitor
+        mood_tab = ttk.Frame(notebook)
+        notebook.add(mood_tab, text="🎭 Mood Monitor")
+        self.create_mood_monitor_tab(mood_tab)
         
         # === Control Buttons ===
         button_frame = ttk.Frame(main_frame)
@@ -1083,6 +1087,128 @@ class NotificationGUI:
             traceback.print_exc()
             parent_window.destroy()
     
+    def create_mood_monitor_tab(self, parent):
+        """Create the mood monitoring interface"""
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(3, weight=1)
+        
+        # === Header ===
+        header_frame = ttk.Frame(parent)
+        header_frame.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
+        
+        title_label = ttk.Label(header_frame, text="🎭 Emotion Detection", 
+                               font=('Arial', 14, 'bold'))
+        title_label.pack(side=tk.LEFT)
+        
+        desc_label = ttk.Label(header_frame, 
+                              text="Real-time emotion detection using your webcam",
+                              font=('Arial', 10), foreground='gray')
+        desc_label.pack(side=tk.LEFT, padx=(10, 0))
+        
+        # === Control Section ===
+        control_frame = ttk.LabelFrame(parent, text="Controls", padding="10")
+        control_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=10, pady=(0, 10))
+        
+        # Status
+        status_frame = ttk.Frame(control_frame)
+        status_frame.pack(fill=tk.X, pady=(0, 10))
+        
+        ttk.Label(status_frame, text="Status:", font=('Arial', 11)).pack(side=tk.LEFT, padx=(0, 10))
+        self.mood_status_label = ttk.Label(status_frame, text="Disabled", 
+                                          font=('Arial', 11, 'bold'), foreground='gray')
+        self.mood_status_label.pack(side=tk.LEFT)
+        
+        # Buttons
+        button_frame = ttk.Frame(control_frame)
+        button_frame.pack(fill=tk.X)
+        
+        self.mood_start_btn = ttk.Button(button_frame, text="▶️ Start Monitoring", 
+                                        command=self.start_mood_monitor, style='Accent.TButton')
+        self.mood_start_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.mood_stop_btn = ttk.Button(button_frame, text="⏹️ Stop", 
+                                       command=self.stop_mood_monitor, state=tk.DISABLED)
+        self.mood_stop_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        ttk.Button(button_frame, text="🔄 Reset Stats", 
+                  command=self.reset_mood_stats).pack(side=tk.LEFT)
+        
+        # === Current Emotion Display ===
+        emotion_frame = ttk.LabelFrame(parent, text="Current Mood Status", padding="15")
+        emotion_frame.grid(row=2, column=0, sticky=(tk.W, tk.E), padx=10, pady=(0, 10))
+        
+        self.current_emotion_label = ttk.Label(emotion_frame, text="No mood detected yet", 
+                                              font=('Arial', 16, 'bold'), wraplength=600)
+        self.current_emotion_label.pack(pady=(5, 5))
+        
+        self.mood_alert_label = ttk.Label(emotion_frame, text="", 
+                                         font=('Arial', 14), foreground='#FF6B6B', wraplength=600)
+        self.mood_alert_label.pack(pady=(5, 5))
+        
+        # === Statistics Display ===
+        stats_frame = ttk.LabelFrame(parent, text="Statistics", padding="10")
+        stats_frame.grid(row=3, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=10, pady=(0, 10))
+        stats_frame.columnconfigure(0, weight=1)
+        stats_frame.rowconfigure(0, weight=1)
+        
+        self.mood_stats_text = scrolledtext.ScrolledText(stats_frame, wrap=tk.WORD, height=12, font=('Arial', 10))
+        self.mood_stats_text.pack(fill=tk.BOTH, expand=True)
+        self.mood_stats_text.config(state=tk.DISABLED)
+        
+        # Initialize with helpful message
+        initial_msg = ("📊 Mood Monitor Ready\n\n"
+                      "Click 'Start Monitoring' to begin real-time emotion detection.\n\n"
+                      "The system will:\n"
+                      "• Analyze your facial expressions every 5 seconds\n"
+                      "• Track 7 different emotions\n"
+                      "• Display statistics and trends here\n\n"
+                      "Make sure your webcam is accessible and you're in good lighting.")
+        self._update_mood_stats_display(initial_msg)
+    
+    def _update_mood_stats_display(self, text):
+        """Update mood statistics text display"""
+        self.mood_stats_text.config(state=tk.NORMAL)
+        self.mood_stats_text.delete(1.0, tk.END)
+        self.mood_stats_text.insert(tk.END, text)
+        self.mood_stats_text.config(state=tk.DISABLED)
+    
+    def start_mood_monitor(self):
+        """Start the mood monitor"""
+        mood_monitor = self.flow_monitor.get_mood_monitor()
+        if not mood_monitor:
+            messagebox.showwarning("Not Available", 
+                                  "Mood monitoring is not enabled. Restart with enable_mood_monitor=True")
+            return
+        
+        if mood_monitor.running:
+            print("⚠️  Mood monitor is already running")
+            return
+        
+        print("▶️  Starting mood monitor...")
+        mood_monitor.start()
+        self.mood_status_label.config(text="Enabled ✓", foreground='green')
+        self.mood_start_btn.config(state=tk.DISABLED)
+        self.mood_stop_btn.config(state=tk.NORMAL)
+        print("✓ Mood monitor started successfully")
+    
+    def stop_mood_monitor(self):
+        """Stop the mood monitor"""
+        mood_monitor = self.flow_monitor.get_mood_monitor()
+        if mood_monitor:
+            mood_monitor.stop()
+            self.mood_status_label.config(text="Disabled", foreground='gray')
+            self.mood_start_btn.config(state=tk.NORMAL)
+            self.mood_stop_btn.config(state=tk.DISABLED)
+            print("✓ Mood monitor stopped")
+    
+    def reset_mood_stats(self):
+        """Reset mood statistics"""
+        mood_monitor = self.flow_monitor.get_mood_monitor()
+        if mood_monitor:
+            mood_monitor.reset()
+            self._update_mood_stats_display("Statistics reset. Continue monitoring to collect new data.")
+            print("✓ Mood statistics reset")
+    
     def load_app_lists(self):
         """Load current app lists from flow amplifier"""
         # Load from saved config if exists
@@ -1741,14 +1867,17 @@ class NotificationGUI:
             self.suppressed_text.see(tk.END)
             self.suppressed_text.config(state=tk.DISABLED)
     
-    def update_loop(self):
-        """Continuously update the display"""
-        while self.running:
+    def schedule_update(self):
+        """Schedule the next update (runs on main thread)"""
+        if self.running:
             try:
                 self.update_display()
             except Exception as e:
                 print(f"Error updating display: {e}")
-            time.sleep(1)
+                import traceback
+                traceback.print_exc()
+            # Schedule next update after 1000ms (1 second)
+            self.root.after(1000, self.schedule_update)
     
     def update_display(self):
         """Update all display elements"""
@@ -1797,8 +1926,8 @@ class NotificationGUI:
         # Update countdown timer
         if eye_settings['is_running'] and not eye_settings['is_paused']:
             time_remaining = eye_settings['time_remaining_seconds']
-            minutes = time_remaining // 60
-            seconds = time_remaining % 60
+            minutes = int(time_remaining // 60)
+            seconds = int(time_remaining % 60)
             self.eye_timer_label.config(text=f"{minutes:02d}:{seconds:02d}", foreground='#2196F3')
         elif eye_settings['is_paused']:
             self.eye_timer_label.config(text="PAUSED", foreground='orange')
@@ -1808,39 +1937,167 @@ class NotificationGUI:
         # Update metrics
         metrics = self.flow_monitor.get_detailed_metrics()
         self.update_metrics_display(metrics)
+        
+        # Update mood monitor display
+        self.update_mood_display(metrics)
     
     def update_metrics_display(self, metrics):
         """Update metrics tab"""
-        text = "=== Real-Time Metrics ===\n\n"
+        try:
+            text = "=== Real-Time Metrics ===\n\n"
+            
+            # Keyboard metrics
+            text += "📝 Keyboard:\n"
+            text += f"  Typing Cadence: {metrics['keyboard']['typing_cadence']:.1f} keys/min\n"
+            text += f"  Avg Latency: {metrics['keyboard']['avg_inter_key_latency']:.3f}s\n"
+            text += f"  Error Rate: {metrics['keyboard']['error_rate']:.2%}\n\n"
+            
+            # Mouse metrics
+            text += "🖱️ Mouse:\n"
+            text += f"  Movement Rate: {metrics['mouse']['mouse_move_rate']:.1f} moves/min\n"
+            text += f"  Scroll Velocity: {metrics['mouse']['scroll_velocity']:.2f}\n"
+            text += f"  Scroll Bursts: {metrics['mouse']['scroll_bursts']}\n\n"
+            
+            # Window metrics
+            text += "🪟 Window:\n"
+            text += f"  Task Switches: {metrics['window']['task_switch_frequency']:.1f}/min\n"
+            text += f"  Active Apps: {metrics['window']['active_app_count']}\n"
+            text += f"  Current App: {metrics['window']['current_app']}\n\n"
+            
+            # Trends
+            text += "📊 Trends (10 min):\n"
+            text += f"  Avg Flow Score: {metrics['trends']['avg_flow_score']:.1f}\n"
+            text += f"  Time in Flow: {metrics['trends']['flow_percentage']:.1f}%\n"
+            text += f"  Trend: {metrics['trends']['trend']}\n"
+            
+            self.metrics_text.config(state=tk.NORMAL)
+            self.metrics_text.delete(1.0, tk.END)
+            self.metrics_text.insert(tk.END, text)
+            self.metrics_text.config(state=tk.DISABLED)
+        except Exception as e:
+            print(f"Error updating metrics display: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def update_mood_display(self, metrics):
+        """Update mood monitor display"""
+        mood_monitor = self.flow_monitor.get_mood_monitor()
+        if not mood_monitor:
+            return
         
-        # Keyboard metrics
-        text += "📝 Keyboard:\n"
-        text += f"  Typing Cadence: {metrics['keyboard']['typing_cadence']:.1f} keys/min\n"
-        text += f"  Avg Latency: {metrics['keyboard']['avg_inter_key_latency']:.3f}s\n"
-        text += f"  Error Rate: {metrics['keyboard']['error_rate']:.2%}\n\n"
+        # Emotion emojis
+        emotion_emojis = {
+            'happy': '😊',
+            'sad': '😢',
+            'angry': '😠',
+            'fear': '😨',
+            'surprise': '😲',
+            'disgust': '🤢',
+            'neutral': '😐'
+        }
         
-        # Mouse metrics
-        text += "🖱️ Mouse:\n"
-        text += f"  Movement Rate: {metrics['mouse']['mouse_move_rate']:.1f} moves/min\n"
-        text += f"  Scroll Velocity: {metrics['mouse']['scroll_velocity']:.2f}\n"
-        text += f"  Scroll Bursts: {metrics['mouse']['scroll_bursts']}\n\n"
+        # Update status label and buttons based on actual running state
+        if mood_monitor.running:
+            if self.mood_status_label.cget('text') != "Enabled ✓":
+                self.mood_status_label.config(text="Enabled ✓", foreground='green')
+                self.mood_start_btn.config(state=tk.DISABLED)
+                self.mood_stop_btn.config(state=tk.NORMAL)
+        else:
+            if self.mood_status_label.cget('text') != "Disabled":
+                self.mood_status_label.config(text="Disabled", foreground='gray')
+                self.mood_start_btn.config(state=tk.NORMAL)
+                self.mood_stop_btn.config(state=tk.DISABLED)
         
-        # Window metrics
-        text += "🪟 Window:\n"
-        text += f"  Task Switches: {metrics['window']['task_switch_frequency']:.1f}/min\n"
-        text += f"  Active Apps: {metrics['window']['active_app_count']}\n"
-        text += f"  Current App: {metrics['window']['current_app']}\n\n"
+        # Check if mood monitor is running
+        if not mood_monitor.running:
+            # Show waiting message when not running
+            self.current_emotion_label.config(text="No mood detected yet")
+            self.mood_alert_label.config(text="")
+            
+            # Check if we have any historical data to show
+            if 'mood' in metrics and metrics['mood'] and metrics['mood'].get('total_checks', 0) > 0:
+                # Show historical stats even when not running
+                self._display_mood_statistics(metrics, emotion_emojis)
+            else:
+                self._update_mood_stats_display("No mood data available. Click 'Start Monitoring' to begin collecting data.")
+            return
         
-        # Trends
-        text += "📊 Trends (10 min):\n"
-        text += f"  Avg Flow Score: {metrics['trends']['avg_flow_score']:.1f}\n"
-        text += f"  Time in Flow: {metrics['trends']['flow_percentage']:.1f}%\n"
-        text += f"  Trend: {metrics['trends']['trend']}\n"
+        # Update current emotion with detailed message
+        if 'mood_current' in metrics and metrics['mood_current']:
+            current_emotion = metrics['mood_current'].get('emotion', 'neutral')
+            
+            # Build detailed message like terminal output
+            message = f"Mood Event: {current_emotion}"
+            
+            # Add contextual description
+            if current_emotion in ['angry', 'disgust', 'fear']:
+                message += " (frustrated)"
+                alert_msg = "⚠️ Alert: frustration"
+                self.mood_alert_label.config(text=alert_msg, foreground='#FF6B6B')
+            elif current_emotion == 'sad':
+                message += " (low mood)"
+                alert_msg = "⚠️ Alert: stress"
+                self.mood_alert_label.config(text=alert_msg, foreground='#FFA500')
+            elif current_emotion == 'happy':
+                message += " (positive)"
+                alert_msg = "✓ Positive mood detected"
+                self.mood_alert_label.config(text=alert_msg, foreground='#4CAF50')
+            elif current_emotion == 'surprise':
+                message += " (unexpected)"
+                self.mood_alert_label.config(text="")
+            elif current_emotion == 'neutral':
+                message += " (calm/focused)"
+                self.mood_alert_label.config(text="")
+            else:
+                self.mood_alert_label.config(text="")
+            
+            self.current_emotion_label.config(text=message)
+        else:
+            self.current_emotion_label.config(text="Waiting for detection...")
+            self.mood_alert_label.config(text="")
         
-        self.metrics_text.config(state=tk.NORMAL)
-        self.metrics_text.delete(1.0, tk.END)
-        self.metrics_text.insert(tk.END, text)
-        self.metrics_text.config(state=tk.DISABLED)
+        # Update statistics
+        if 'mood' in metrics and metrics['mood']:
+            self._display_mood_statistics(metrics, emotion_emojis)
+        else:
+            self._update_mood_stats_display("Monitoring active. Waiting for first emotion detection...")
+    
+    def _display_mood_statistics(self, metrics, emotion_emojis):
+        """Display mood statistics in the text widget"""
+        stats = metrics['mood']
+        mood_trend = metrics.get('mood_trend', {})
+        
+        text = "=== Mood Statistics ===\n\n"
+        text += f"Total Checks: {stats.get('total_checks', 0)}\n"
+        text += f"Successful Detections: {stats.get('emotion_detected_count', 0)}\n"
+        text += f"Detection Rate: {stats.get('detection_rate', 0):.1%}\n\n"
+        
+        text += "📊 Emotion Distribution:\n"
+        emotion_counts = stats.get('emotion_counts', {})
+        if emotion_counts:
+            for emotion, count in sorted(emotion_counts.items(), key=lambda x: x[1], reverse=True):
+                total = stats.get('total_checks', 0)
+                percentage = (count / total * 100) if total > 0 else 0
+                emoji = emotion_emojis.get(emotion, '❓')
+                text += f"  {emoji} {emotion.capitalize()}: {count} ({percentage:.1f}%)\n"
+        else:
+            text += "  No emotions detected yet...\n"
+        
+        text += f"\n🔔 Alert Statistics:\n"
+        text += f"  Frustration Alerts: {stats.get('frustration_count', 0)}\n"
+        text += f"  Stress Alerts: {stats.get('stress_count', 0)}\n"
+        text += f"  Positive Mood Count: {stats.get('positive_count', 0)}\n\n"
+        
+        if mood_trend and mood_trend.get('sample_count', 0) > 0:
+            text += "📈 Recent Trend (10 min):\n"
+            text += f"  Dominant Emotion: {mood_trend.get('dominant_emotion', 'N/A').capitalize()}\n"
+            text += f"  Average Confidence: {mood_trend.get('avg_confidence', 0):.1%}\n"
+            text += f"  Samples: {mood_trend.get('sample_count', 0)}\n"
+        else:
+            text += "📈 Recent Trend (10 min):\n"
+            text += "  Collecting data...\n"
+        
+        self._update_mood_stats_display(text)
     
     def reset_metrics(self):
         """Reset all metrics"""
@@ -1872,6 +2129,12 @@ class NotificationGUI:
         """Quit the application"""
         self.running = False
         self.eye_defender.stop()
+        
+        # Stop mood monitor if running
+        mood_monitor = self.flow_monitor.get_mood_monitor()
+        if mood_monitor:
+            mood_monitor.stop()
+        
         self.flow_monitor.stop()
         self.root.quit()
     
