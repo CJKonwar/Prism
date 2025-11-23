@@ -32,8 +32,8 @@ class NotificationGUI:
         self.flow_monitor = flow_monitor
         self.auto_start_eye_defender = auto_start_eye_defender
         
-        # Initialize Eye Defender (will be configured from GUI)
-        self.eye_defender = EyeDefender(interval_minutes=30, blur_duration_seconds=20)
+        # Initialize Eye Defender (default values, will be updated from GUI sliders)
+        self.eye_defender = EyeDefender(interval_minutes=20, blur_duration_seconds=20)
         
         self.root = tk.Tk()
         self.root.title("Prism - Flow State Monitor")
@@ -50,6 +50,9 @@ class NotificationGUI:
         
         # Set blur callback for Eye Defender (must run on main thread)
         self.eye_defender.set_blur_callback(lambda: self.root.after(0, self.show_eye_break_overlay))
+        
+        # Initialize Eye Defender with slider values after UI is created
+        self.root.after(100, self._initialize_eye_defender_from_gui)
         
         # Auto-start Eye Defender if requested
         if self.auto_start_eye_defender:
@@ -385,15 +388,20 @@ class NotificationGUI:
         ttk.Label(header_frame, text=desc_text, foreground='#666', wraplength=800).grid(row=0, column=0, sticky=tk.W)
         
         # === Settings Frame ===
-        settings_frame = ttk.LabelFrame(parent, text="⚙️ Timer Settings", padding="15")
+        settings_frame = ttk.LabelFrame(parent, text="⚙️ Timer Settings (Changes Apply Immediately)", padding="15")
         settings_frame.grid(row=1, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         settings_frame.columnconfigure(1, weight=1)
         
+        # Help text
+        help_text = "⚡ Adjust sliders anytime - settings update instantly, even while Eye Defender is running!"
+        ttk.Label(settings_frame, text=help_text, foreground='#2196F3', font=('Arial', 9), wraplength=800).grid(
+            row=0, column=0, columnspan=2, sticky=tk.W, pady=(0, 10))
+        
         # Interval setting
-        ttk.Label(settings_frame, text="Reminder Interval:", font=('Arial', 11)).grid(row=0, column=0, sticky=tk.W, pady=10)
+        ttk.Label(settings_frame, text="Reminder Interval:", font=('Arial', 11)).grid(row=1, column=0, sticky=tk.W, pady=10)
         
         interval_frame = ttk.Frame(settings_frame)
-        interval_frame.grid(row=0, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
+        interval_frame.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
         
         self.interval_var = tk.DoubleVar(value=20.0)
         # Range: 0.5 to 30 minutes (30 seconds to 30 minutes)
@@ -405,10 +413,10 @@ class NotificationGUI:
         self.interval_label.pack(side=tk.RIGHT)
         
         # Duration setting
-        ttk.Label(settings_frame, text="Break Duration (seconds):", font=('Arial', 11)).grid(row=1, column=0, sticky=tk.W, pady=10)
+        ttk.Label(settings_frame, text="Break Duration (seconds):", font=('Arial', 11)).grid(row=2, column=0, sticky=tk.W, pady=10)
         
         duration_frame = ttk.Frame(settings_frame)
-        duration_frame.grid(row=1, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
+        duration_frame.grid(row=2, column=1, sticky=(tk.W, tk.E), pady=10, padx=(10, 0))
         
         self.duration_var = tk.IntVar(value=20)
         self.duration_scale = ttk.Scale(duration_frame, from_=10, to=60, orient=tk.HORIZONTAL,
@@ -471,6 +479,14 @@ class NotificationGUI:
         ttk.Button(button_frame, text="👁️ Take Break Now", 
                   command=self.manual_eye_break).pack(side=tk.LEFT)
     
+    def _initialize_eye_defender_from_gui(self):
+        """Initialize Eye Defender with current slider values"""
+        interval_minutes = self.interval_var.get()
+        duration_seconds = self.duration_var.get()
+        self.eye_defender.set_interval(interval_minutes)
+        self.eye_defender.set_blur_duration(duration_seconds)
+        print(f"👁️  Eye Defender configured: {interval_minutes} min interval, {duration_seconds} sec breaks")
+    
     def update_eye_defender_interval(self, value):
         """Update interval label and eye defender setting"""
         minutes = float(value)
@@ -489,15 +505,21 @@ class NotificationGUI:
         # Show feedback if Eye Defender is running
         settings = self.eye_defender.get_settings()
         if settings['is_running'] and not settings['is_paused']:
-            self.eye_status_label.config(text="Active ✓ (Timer Reset)", foreground='green')
+            self.eye_status_label.config(text="⚡ Timer Restarted", foreground='#FF9800')
+            print(f"⚙️  Eye Defender interval changed to {minutes:.1f} minutes (timer restarted)")
             # Reset label after 2 seconds
-            self.root.after(2000, lambda: self.eye_status_label.config(text="Active ✓"))
+            self.root.after(2000, lambda: self.eye_status_label.config(text="Active ✓", foreground='green'))
     
     def update_eye_defender_duration(self, value):
         """Update duration label and eye defender setting"""
         seconds = int(float(value))
         self.duration_label.config(text=f"{seconds} sec")
         self.eye_defender.set_blur_duration(seconds)
+        
+        # Show feedback if Eye Defender is running
+        settings = self.eye_defender.get_settings()
+        if settings['is_running']:
+            print(f"⚙️  Eye Defender break duration changed to {seconds} seconds")
     
     def start_eye_defender(self):
         """Start the eye defender"""
