@@ -480,11 +480,13 @@ class NotificationGUI:
                   command=self.manual_eye_break).pack(side=tk.LEFT)
     
     def _initialize_eye_defender_from_gui(self):
-        """Initialize Eye Defender with current slider values"""
+        """Initialize Eye Defender with current slider values (silent, no auto-start)"""
         interval_minutes = self.interval_var.get()
         duration_seconds = self.duration_var.get()
-        self.eye_defender.set_interval(interval_minutes)
-        self.eye_defender.set_blur_duration(duration_seconds)
+        # Directly set the values without triggering any flags
+        with self.eye_defender.lock:
+            self.eye_defender.interval_minutes = float(interval_minutes)
+            self.eye_defender.blur_duration_seconds = int(duration_seconds)
         print(f"👁️  Eye Defender configured: {interval_minutes} min interval, {duration_seconds} sec breaks")
     
     def update_eye_defender_interval(self, value):
@@ -499,12 +501,21 @@ class NotificationGUI:
         else:
             self.interval_label.config(text=f"{minutes:.1f} min")
         
-        # Update interval (will auto-restart timer if running)
-        self.eye_defender.set_interval(minutes)
-        
-        # Show feedback if Eye Defender is running
+        # Check current state BEFORE updating
         settings = self.eye_defender.get_settings()
-        if settings['is_running'] and not settings['is_paused']:
+        was_running = settings['is_running']
+        
+        # ONLY update the interval value, do NOT trigger any start
+        # Directly set the value without calling set_interval which sets flags
+        with self.eye_defender.lock:
+            old_interval = self.eye_defender.interval_minutes
+            self.eye_defender.interval_minutes = float(minutes)
+            # Only set interval_changed flag if actually running
+            if was_running and old_interval != self.eye_defender.interval_minutes:
+                self.eye_defender.interval_changed = True
+        
+        # Show feedback ONLY if Eye Defender was already running
+        if was_running and not settings['is_paused']:
             self.eye_status_label.config(text="⚡ Timer Restarted", foreground='#FF9800')
             print(f"⚙️  Eye Defender interval changed to {minutes:.1f} minutes (timer restarted)")
             # Reset label after 2 seconds
@@ -514,21 +525,32 @@ class NotificationGUI:
         """Update duration label and eye defender setting"""
         seconds = int(float(value))
         self.duration_label.config(text=f"{seconds} sec")
-        self.eye_defender.set_blur_duration(seconds)
         
-        # Show feedback if Eye Defender is running
+        # Directly update duration without any side effects
+        with self.eye_defender.lock:
+            self.eye_defender.blur_duration_seconds = int(seconds)
+        
+        # Show feedback ONLY if Eye Defender is currently running
         settings = self.eye_defender.get_settings()
-        if settings['is_running']:
+        if settings['is_running'] and not settings['is_paused']:
             print(f"⚙️  Eye Defender break duration changed to {seconds} seconds")
     
     def start_eye_defender(self):
         """Start the eye defender"""
+        # Safety check - don't start if already running
+        if self.eye_defender.get_settings()['is_running']:
+            print("⚠️  Eye Defender is already running")
+            return
+        
+        # Get current settings
+        settings = self.eye_defender.get_settings()
+        print(f"▶️  Starting Eye Defender with {settings['interval_minutes']} min interval, {settings['blur_duration_seconds']} sec breaks...")
+        
         self.eye_defender.start()
         self.eye_status_label.config(text="Active ✓", foreground='green')
         self.eye_start_btn.config(state=tk.DISABLED)
         self.eye_stop_btn.config(state=tk.NORMAL)
         self.eye_pause_btn.config(state=tk.NORMAL)
-        print("✓ Eye Defender started")
     
     def stop_eye_defender(self):
         """Stop the eye defender"""
