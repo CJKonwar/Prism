@@ -1330,8 +1330,21 @@ class NotificationGUI:
             
             # Load the most recent session
             latest_session = max(session_files, key=os.path.getmtime)
-            with open(latest_session, 'r') as f:
-                data = json.load(f)
+            try:
+                with open(latest_session, 'r') as f:
+                    content = f.read()
+                    if not content.strip():
+                        raise ValueError("Empty file")
+                    data = json.loads(content)
+            except (json.JSONDecodeError, ValueError) as e:
+                error_label = ttk.Label(
+                    self.stats_scrollable_frame,
+                    text=f"Session data file is corrupted or incomplete.\nPlease wait for new data to be generated.",
+                    font=('SF Pro Text', 11),
+                    foreground='#EF4444'
+                )
+                error_label.pack(pady=20)
+                return
             
             summary = data.get('summary', {})
             
@@ -1672,8 +1685,21 @@ class NotificationGUI:
             
             # Load the most recent session
             latest_session = max(session_files, key=os.path.getmtime)
-            with open(latest_session, 'r') as f:
-                data = json.load(f)
+            try:
+                with open(latest_session, 'r') as f:
+                    content = f.read()
+                    if not content.strip():
+                        raise ValueError("Empty file")
+                    data = json.loads(content)
+            except (json.JSONDecodeError, ValueError) as e:
+                error_label = ttk.Label(
+                    self.ai_recommendations_frame,
+                    text=f"Session data file is corrupted or incomplete.\nPlease wait for new data to be generated.",
+                    font=('SF Pro Text', 11),
+                    foreground='#EF4444'
+                )
+                error_label.pack(pady=20)
+                return
             
             summary = data.get('summary', {})
             flow_analysis = summary.get('flow_state_analysis', {})

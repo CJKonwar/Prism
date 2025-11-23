@@ -286,9 +286,21 @@ class AIAssistant:
                 print("Session log file not found yet")
                 return
             
-            # Read session data
-            with open(log_file, 'r') as f:
-                session_data = json.load(f)
+            # Read session data with error handling
+            try:
+                with open(log_file, 'r') as f:
+                    content = f.read()
+                    if not content.strip():
+                        print("Session log file is empty")
+                        return
+                    session_data = json.loads(content)
+            except json.JSONDecodeError as e:
+                print(f"Invalid JSON in session log file: {e}")
+                print("The file may be corrupted or still being written. Skipping this analysis.")
+                return
+            except Exception as e:
+                print(f"Error reading session log file: {e}")
+                return
             
             if 'summary' not in session_data:
                 print("Session summary not available yet")
