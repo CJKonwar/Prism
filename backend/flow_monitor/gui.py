@@ -701,14 +701,15 @@ class NotificationGUI:
                     print(f"⚠️  Error stopping music: {e}")
             
             def fade_out():
-                """Gradually fade out and close"""
+                """Gradually fade out and transition to breathing exercise"""
                 current_alpha = blur_window.attributes('-alpha')
                 if current_alpha > 0:
                     blur_window.attributes('-alpha', current_alpha - 0.1)
                     blur_window.after(50, fade_out)
                 else:
                     stop_music()
-                    blur_window.destroy()
+                    # Transition to breathing exercise
+                    blur_window.after(100, lambda: self.show_breathing_exercise(blur_window))
             
             def skip_break(event=None):
                 """Allow user to skip the break"""
@@ -737,6 +738,350 @@ class NotificationGUI:
             
         except Exception as e:
             print(f"⚠️  Error showing eye break overlay: {e}")
+    
+    def show_breathing_exercise(self, parent_window):
+        """Show interactive breathing exercise game after eye break"""
+        try:
+            import math
+            import random
+            import subprocess
+            
+            # Clear the parent window content
+            for widget in parent_window.winfo_children():
+                widget.destroy()
+            
+            # Keep fullscreen settings
+            parent_window.attributes('-alpha', 0.0)
+            parent_window.configure(bg='#0a0e27')
+            
+            # Get screen dimensions
+            screen_width = parent_window.winfo_screenwidth()
+            screen_height = parent_window.winfo_screenheight()
+            
+            # Main canvas for full-screen animation
+            canvas = tk.Canvas(parent_window, width=screen_width, height=screen_height, 
+                             bg='#0a0e27', highlightthickness=0)
+            canvas.pack(fill=tk.BOTH, expand=True)
+            
+            # Center coordinates
+            center_x = screen_width // 2
+            center_y = screen_height // 2
+            
+            # Breathing state
+            state = {
+                'round': 1,
+                'total_rounds': 3,
+                'phase': 'ready',  # ready, inhale, hold_in, exhale, hold_out, complete
+                'running': True,
+                'particles': [],
+                'stars': [],
+                'score': 0,
+                'perfect_timing': 0
+            }
+            
+            # Create starfield background
+            for _ in range(100):
+                x = random.randint(0, screen_width)
+                y = random.randint(0, screen_height)
+                size = random.randint(1, 3)
+                brightness = random.randint(150, 255)
+                color = f'#{brightness:02x}{brightness:02x}{brightness:02x}'
+                star = canvas.create_oval(x, y, x+size, y+size, fill=color, outline='')
+                state['stars'].append({'id': star, 'x': x, 'y': y, 'brightness': brightness})
+            
+            # UI Elements
+            title = canvas.create_text(center_x, 80, text="🫁 Breathing Meditation", 
+                                      font=('Arial', 48, 'bold'), fill='#00d4ff')
+            
+            instruction = canvas.create_text(center_x, center_y + 280, text="Get Ready...", 
+                                           font=('Arial', 36, 'bold'), fill='#ffffff')
+            
+            timer_text = canvas.create_text(center_x, center_y, text="", 
+                                          font=('Arial', 72, 'bold'), fill='#ffffff')
+            
+            counter = canvas.create_text(center_x, 150, text=f"Round {state['round']} of {state['total_rounds']}", 
+                                       font=('Arial', 24), fill='#888888')
+            
+            score_text = canvas.create_text(center_x, center_y + 350, text="", 
+                                          font=('Arial', 20), fill='#FFD700')
+            
+            hint = canvas.create_text(center_x, screen_height - 50, 
+                                    text="Press ESC to skip", 
+                                    font=('Arial', 16), fill='#666666')
+            
+            # Phase configurations
+            phases = {
+                'inhale': {
+                    'duration': 4,
+                    'text': '🌬️ Breathe In',
+                    'color': '#4CAF50',
+                    'gradient': ['#4CAF50', '#81C784', '#A5D6A7'],
+                    'next': 'hold_in',
+                    'min_size': 80,
+                    'max_size': 200
+                },
+                'hold_in': {
+                    'duration': 4,
+                    'text': '⏸️ Hold',
+                    'color': '#FFC107',
+                    'gradient': ['#FFC107', '#FFD54F', '#FFE082'],
+                    'next': 'exhale',
+                    'min_size': 200,
+                    'max_size': 200
+                },
+                'exhale': {
+                    'duration': 6,
+                    'text': '🌊 Breathe Out',
+                    'color': '#2196F3',
+                    'gradient': ['#2196F3', '#64B5F6', '#90CAF9'],
+                    'next': 'hold_out',
+                    'min_size': 200,
+                    'max_size': 80
+                },
+                'hold_out': {
+                    'duration': 2,
+                    'text': '⏸️ Rest',
+                    'color': '#9C27B0',
+                    'gradient': ['#9C27B0', '#BA68C8', '#CE93D8'],
+                    'next': 'inhale',
+                    'min_size': 80,
+                    'max_size': 80
+                }
+            }
+            
+            def play_sound(sound_type):
+                """Play system sound for feedback"""
+                try:
+                    sounds = {
+                        'start': 'Hero',
+                        'inhale': 'Tink',
+                        'hold': 'Pop',
+                        'exhale': 'Morse',
+                        'complete': 'Glass',
+                        'perfect': 'Ping'
+                    }
+                    sound = sounds.get(sound_type, 'Tink')
+                    subprocess.Popen(['afplay', f'/System/Library/Sounds/{sound}.aiff'],
+                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except:
+                    pass
+            
+            def create_particles(x, y, color, count=20):
+                """Create particle explosion effect"""
+                for _ in range(count):
+                    angle = random.uniform(0, 2 * math.pi)
+                    speed = random.uniform(2, 8)
+                    size = random.randint(3, 8)
+                    particle = {
+                        'x': x,
+                        'y': y,
+                        'vx': math.cos(angle) * speed,
+                        'vy': math.sin(angle) * speed,
+                        'size': size,
+                        'color': color,
+                        'life': 30,
+                        'id': None
+                    }
+                    particle['id'] = canvas.create_oval(x, y, x+size, y+size, fill=color, outline='')
+                    state['particles'].append(particle)
+            
+            def update_particles():
+                """Update and remove dead particles"""
+                for particle in state['particles'][:]:
+                    particle['x'] += particle['vx']
+                    particle['y'] += particle['vy']
+                    particle['life'] -= 1
+                    
+                    if particle['life'] <= 0:
+                        canvas.delete(particle['id'])
+                        state['particles'].remove(particle)
+                    else:
+                        canvas.coords(particle['id'], 
+                                    particle['x'], particle['y'],
+                                    particle['x'] + particle['size'], 
+                                    particle['y'] + particle['size'])
+                        # Fade out
+                        alpha = int(255 * (particle['life'] / 30))
+                        canvas.itemconfig(particle['id'], 
+                                        fill=f'#{alpha:02x}{alpha:02x}{alpha:02x}')
+            
+            def twinkle_stars():
+                """Animate background stars"""
+                if not state['running']:
+                    return
+                
+                for star in random.sample(state['stars'], min(5, len(state['stars']))):
+                    new_brightness = random.randint(100, 255)
+                    color = f'#{new_brightness:02x}{new_brightness:02x}{new_brightness:02x}'
+                    canvas.itemconfig(star['id'], fill=color)
+                
+                parent_window.after(100, twinkle_stars)
+            
+            def fade_in():
+                """Fade in the window"""
+                current_alpha = parent_window.attributes('-alpha')
+                if current_alpha < 0.95:
+                    parent_window.attributes('-alpha', current_alpha + 0.05)
+                    parent_window.after(30, fade_in)
+            
+            def start_exercise():
+                """Start the breathing exercise"""
+                play_sound('start')
+                canvas.itemconfig(instruction, text="✨ Begin", fill='#4CAF50')
+                parent_window.after(1500, lambda: animate_phase('inhale'))
+            
+            def animate_phase(phase_name):
+                """Animate a breathing phase"""
+                if not state['running']:
+                    return
+                
+                state['phase'] = phase_name
+                phase = phases[phase_name]
+                
+                canvas.itemconfig(instruction, text=phase['text'], fill=phase['color'])
+                play_sound(phase_name.split('_')[0])
+                
+                duration = phase['duration']
+                steps = duration * 20  # 50ms per step for smooth animation
+                step = [0]
+                countdown = [duration]
+                
+                def update_animation():
+                    if not state['running']:
+                        return
+                    
+                    if step[0] < steps:
+                        progress = step[0] / steps
+                        
+                        # Smooth easing
+                        if phase_name in ['inhale', 'exhale']:
+                            eased_progress = 0.5 - 0.5 * math.cos(progress * math.pi)
+                        else:
+                            eased_progress = progress
+                        
+                        size = phase['min_size'] + (phase['max_size'] - phase['min_size']) * eased_progress
+                        
+                        # Update particles
+                        update_particles()
+                        
+                        # Draw main circle with gradient effect
+                        canvas.delete('breath_circle')
+                        
+                        # Multiple layers for depth
+                        for i in range(3):
+                            layer_size = size * (1 - i * 0.15)
+                            x1 = center_x - layer_size
+                            y1 = center_y - layer_size
+                            x2 = center_x + layer_size
+                            y2 = center_y + layer_size
+                            
+                            alpha = int(255 * (1 - i * 0.3))
+                            color_idx = min(i, len(phase['gradient']) - 1)
+                            
+                            canvas.create_oval(x1, y1, x2, y2,
+                                             fill=phase['gradient'][color_idx],
+                                             outline='', tags='breath_circle')
+                        
+                        # Outer glow/pulse
+                        glow_size = size * 1.2
+                        for j in range(3):
+                            glow_offset = j * 15
+                            gx1 = center_x - glow_size - glow_offset
+                            gy1 = center_y - glow_size - glow_offset
+                            gx2 = center_x + glow_size + glow_offset
+                            gy2 = center_y + glow_size + glow_offset
+                            
+                            alpha = int(80 / (j + 1))
+                            canvas.create_oval(gx1, gy1, gx2, gy2,
+                                             fill='', outline=phase['color'],
+                                             width=3, tags='breath_circle')
+                        
+                        # Update countdown timer
+                        new_countdown = duration - int(step[0] / 20)
+                        if new_countdown != countdown[0]:
+                            countdown[0] = new_countdown
+                            canvas.itemconfig(timer_text, text=str(countdown[0]))
+                            if countdown[0] <= 3 and countdown[0] > 0:
+                                play_sound('hold')
+                        
+                        step[0] += 1
+                        parent_window.after(50, update_animation)
+                    else:
+                        # Phase complete
+                        canvas.delete('breath_circle')
+                        canvas.itemconfig(timer_text, text='')
+                        
+                        next_phase = phase['next']
+                        
+                        if next_phase == 'inhale':
+                            # Round complete
+                            state['round'] += 1
+                            canvas.itemconfig(counter, text=f"Round {state['round']} of {state['total_rounds']}")
+                            
+                            if state['round'] <= state['total_rounds']:
+                                create_particles(center_x, center_y, '#FFD700', 30)
+                                parent_window.after(500, lambda: animate_phase('inhale'))
+                            else:
+                                complete_exercise()
+                        else:
+                            parent_window.after(200, lambda: animate_phase(next_phase))
+                
+                update_animation()
+            
+            def complete_exercise():
+                """Complete the breathing exercise"""
+                state['phase'] = 'complete'
+                play_sound('complete')
+                
+                canvas.delete('breath_circle')
+                canvas.itemconfig(instruction, text="🎉 Excellent!", fill='#4CAF50')
+                canvas.itemconfig(timer_text, text='', fill='#4CAF50')
+                
+                # Final message
+                final_message = canvas.create_text(center_x, center_y,
+                                                text="You've completed 3 rounds of breathing",
+                                                font=('Arial', 28, 'bold'), fill='#FFD700')
+                
+                # Celebration particles
+                for _ in range(50):
+                    create_particles(center_x + random.randint(-100, 100),
+                                   center_y + random.randint(-100, 100),
+                                   random.choice(['#FFD700', '#4CAF50', '#2196F3', '#FF6B6B']),
+                                   10)
+                
+                parent_window.after(3000, fade_out_and_close)
+            
+            def fade_out_and_close():
+                """Fade out and close"""
+                current_alpha = parent_window.attributes('-alpha')
+                if current_alpha > 0:
+                    parent_window.attributes('-alpha', current_alpha - 0.05)
+                    parent_window.after(30, fade_out_and_close)
+                else:
+                    parent_window.destroy()
+                    print("✓ Breathing exercise completed")
+            
+            def skip_exercise(event=None):
+                """Skip the exercise"""
+                state['running'] = False
+                parent_window.destroy()
+                print("⏭️  Breathing exercise skipped")
+            
+            # Bind keys
+            parent_window.bind('<Escape>', skip_exercise)
+            
+            # Start animations
+            fade_in()
+            twinkle_stars()
+            parent_window.after(1000, start_exercise)
+            
+            print("🫁 Starting interactive breathing exercise...")
+            
+        except Exception as e:
+            print(f"⚠️  Error showing breathing exercise: {e}")
+            import traceback
+            traceback.print_exc()
+            parent_window.destroy()
     
     def load_app_lists(self):
         """Load current app lists from flow amplifier"""
