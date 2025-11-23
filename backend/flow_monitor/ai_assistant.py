@@ -53,6 +53,13 @@ class AIAssistant:
         # Analysis history
         self.analysis_history = []
         
+        # Conversation history for context continuity
+        self.conversation_history = []
+        
+        # Music playback state
+        self.music_playing = False
+        self.music_process = None
+        
         print("AI Assistant initialized with Gemini")
         print(f"   Available tools: {len(self.system_tools)}")
     
@@ -143,7 +150,7 @@ class AIAssistant:
                         "duration_minutes": {
                             "type": "integer",
                             "description": "How long to play (5-30 minutes)",
-                            "default": 15
+                            "default": 0.1
                         }
                     },
                     "required": ["reason"]
@@ -311,11 +318,22 @@ class AIAssistant:
             # Build context for Gemini
             context = self._build_context(summary)
             
+            # Build conversation history context
+            history_context = ""
+            if self.conversation_history:
+                recent_history = self.conversation_history[-5:]  # Last 5 interactions
+                history_context = "\n\nRecent Interaction History:\n"
+                for idx, interaction in enumerate(recent_history, 1):
+                    history_context += f"{idx}. [{interaction['timestamp']}] {interaction['action']}"
+                    if 'title' in interaction.get('arguments', {}):
+                        history_context += f" - {interaction['arguments']['title']}"
+                    history_context += "\n"
+            
             # Ask Gemini for recommendations
             prompt = f"""You are an AI productivity assistant monitoring a user's work session in real-time. 
 
 Current Session Data:
-{json.dumps(context, indent=2)}
+{json.dumps(context, indent=2)}{history_context}
 
 CRITICAL INSTRUCTION: You MUST use ONLY the 'show_suggestion_notification' tool for ALL recommendations. 
 
@@ -333,10 +351,13 @@ Consider:
 - Signs of stress, fatigue, or distraction
 
 Examples:
-- If mood shows "angry" with frustration alerts → show_suggestion_notification with title="Extreme Frustration Detected", suggestion_type="breathing_exercise", severity="urgent"
+- If mood shows "angry" with frustration alerts → show_suggestion_notification with title="Extreme Frustration Detected", suggestion_type="breathing_exercise" or "calm_music", severity="urgent"
+- If stress/negative emotions detected → show_suggestion_notification with suggestion_type="calm_music" to help user relax with soothing music
 - If low flow score (< 40) for extended period → show_suggestion_notification with suggestion_type="take_break" or "dnd_mode"
 - If extended screen time (> 60 min) → show_suggestion_notification with suggestion_type="eye_break"
 - If everything is good → show_suggestion_notification with suggestion_type="encouragement"
+
+Music Feature: Use suggestion_type="calm_music" when detecting frustration, anger, stress, or anxiety to play calming music from assets folder. Include action_params with duration_minutes (5-30).
 
 Create clear, empathetic messages that explain WHY you're suggesting the action.
 
@@ -367,6 +388,12 @@ Respond by calling show_suggestion_notification tool."""
                 
                 with self.lock:
                     self.analysis_history.append(analysis)
+                    # Also track in conversation history (without full context)
+                    self.conversation_history.append({
+                        'timestamp': datetime.now().isoformat(),
+                        'action': function_call.name,
+                        'arguments': dict(function_call.args)
+                    })
                 
                 # Execute action if callback registered
                 if function_call.name in self.action_callbacks:
@@ -437,6 +464,90 @@ Respond by calling show_suggestion_notification tool."""
         with self.lock:
             return self.analysis_history.copy()
     
+    def get_conversation_history(self):
+        """Get conversation history"""
+        with self.lock:
+            return self.conversation_history.copy()
+    
+    def play_calm_music(self, reason="stress relief", duration_minutes=0.1):
+        """Play calm music from assets folder"""
+        try:
+            if self.music_playing:
+                print("Music already playing")
+                return
+            
+            # Get path to music file
+            backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            music_path = os.path.join(backend_dir, 'assets', 'music_reco.mp3')
+            
+            if not os.path.exists(music_path):
+                print(f"Music file not found: {music_path}")
+                return
+            
+            print(f"Playing calm music for {reason}...")
+            
+            try:
+                import pygame
+                if not pygame.mixer.get_init():
+                    pygame.mixer.init()
+                pygame.mixer.music.load(music_path)
+                pygame.mixer.music.play()
+                self.music_playing = True
+                print(f"Calm music playing (pygame) - Duration: {duration_minutes} min")
+                
+                # Schedule stop after duration
+                def stop_music():
+                    time.sleep(duration_minutes * 60)
+                    if pygame.mixer.music.get_busy():
+                        pygame.mixer.music.stop()
+                    self.music_playing = False
+                    print("Calm music stopped")
+                
+                Thread(target=stop_music, daemon=True).start()
+                
+            except ImportError:
+                # Fallback to system player on macOS
+                import subprocess
+                self.music_process = subprocess.Popen(
+                    ['afplay', music_path],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                self.music_playing = True
+                print(f"Calm music playing (afplay) - Duration: {duration_minutes} min")
+                
+                # Schedule stop after duration
+                def stop_afplay():
+                    time.sleep(duration_minutes * 60)
+                    if self.music_process:
+                        self.music_process.terminate()
+                    self.music_playing = False
+                    print("Calm music stopped")
+                
+                Thread(target=stop_afplay, daemon=True).start()
+                
+        except Exception as e:
+            print(f"Error playing music: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    def stop_music(self):
+        """Stop currently playing music"""
+        try:
+            import pygame
+            if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+                pygame.mixer.music.stop()
+                print("Music stopped (pygame)")
+        except:
+            pass
+        
+        if self.music_process:
+            self.music_process.terminate()
+            self.music_process = None
+            print("Music stopped (afplay)")
+        
+        self.music_playing = False
+    
     def save_analysis_log(self, output_dir=None):
         """Save analysis history to file"""
         if output_dir is None:
@@ -452,7 +563,8 @@ Respond by calling show_suggestion_notification tool."""
                 json.dump({
                     'session_id': self.session_logger.session_id,
                     'total_recommendations': len(self.analysis_history),
-                    'recommendations': self.analysis_history
+                    'recommendations': self.analysis_history,
+                    'conversation_history': self.conversation_history
                 }, f, indent=2)
         
         print(f"AI analysis log saved: {log_file}")

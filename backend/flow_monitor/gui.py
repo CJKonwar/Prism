@@ -1850,6 +1850,10 @@ class NotificationGUI:
             for rec in recommendations:
                 self._create_recommendation_card(rec)
             
+            # Add conversation history section if AI assistant is available
+            if hasattr(self, 'ai_assistant') and self.ai_assistant:
+                self._create_conversation_history_section()
+            
         except Exception as e:
             print(f"Error updating AI recommendations: {e}")
             import traceback
@@ -1918,6 +1922,81 @@ class NotificationGUI:
         
         # Bottom padding
         ttk.Frame(card_frame, height=15).pack()
+    
+    def _create_conversation_history_section(self):
+        """Create conversation history section showing AI interactions"""
+        try:
+            history = self.ai_assistant.get_conversation_history()
+            
+            if not history:
+                return
+            
+            # Section header
+            history_header = ttk.Frame(self.ai_recommendations_frame, style='Card.TFrame')
+            history_header.pack(fill=tk.X, padx=20, pady=(30, 10))
+            
+            ttk.Label(history_header, text="AI Interaction History",
+                     font=('SF Pro Display', 16, 'bold'),
+                     foreground=self.colors['text_primary']).pack(anchor='w')
+            ttk.Label(history_header, text=f"Last {min(len(history), 10)} interactions with the AI assistant",
+                     font=('SF Pro Text', 10),
+                     foreground=self.colors['text_secondary']).pack(anchor='w', pady=(5, 0))
+            
+            # Show last 10 interactions
+            recent_history = history[-10:][::-1]  # Reverse to show newest first
+            
+            for interaction in recent_history:
+                history_card = ttk.Frame(self.ai_recommendations_frame, style='Card.TFrame', 
+                                        relief='solid', borderwidth=1)
+                history_card.pack(fill=tk.X, padx=20, pady=5)
+                
+                # Timestamp and action
+                header_row = ttk.Frame(history_card, style='Card.TFrame')
+                header_row.pack(fill=tk.X, padx=15, pady=(10, 5))
+                
+                timestamp = interaction.get('timestamp', '').split('T')
+                time_str = timestamp[1][:8] if len(timestamp) > 1 else 'Unknown'
+                
+                ttk.Label(header_row, text=f"🤖 {time_str}",
+                         font=('SF Mono', 9),
+                         foreground=self.colors['text_secondary']).pack(side=tk.LEFT)
+                
+                action_name = interaction.get('action', 'unknown').replace('_', ' ').title()
+                ttk.Label(header_row, text=action_name,
+                         font=('SF Pro Text', 10, 'bold'),
+                         foreground=self.colors['primary']).pack(side=tk.LEFT, padx=(10, 0))
+                
+                # Arguments details
+                args = interaction.get('arguments', {})
+                if args:
+                    args_frame = ttk.Frame(history_card, style='Card.TFrame')
+                    args_frame.pack(fill=tk.X, padx=15, pady=(0, 10))
+                    
+                    # Show title if present
+                    if 'title' in args:
+                        ttk.Label(args_frame, text=args['title'],
+                                 font=('SF Pro Text', 10),
+                                 foreground=self.colors['text_primary']).pack(anchor='w')
+                    
+                    # Show message if present
+                    if 'message' in args:
+                        ttk.Label(args_frame, text=args['message'],
+                                 font=('SF Pro Text', 9),
+                                 foreground=self.colors['text_secondary'],
+                                 wraplength=750).pack(anchor='w', pady=(2, 0))
+                    
+                    # Show suggestion type
+                    if 'suggestion_type' in args:
+                        type_label = ttk.Label(args_frame, 
+                                              text=f"Type: {args['suggestion_type']}",
+                                              font=('SF Mono', 8),
+                                              foreground=self.colors['FOCUSED'])
+                        type_label.pack(anchor='w', pady=(5, 0))
+                
+        except Exception as e:
+            print(f"Error creating conversation history: {e}")
+            import traceback
+            traceback.print_exc()
     
     def start_mood_monitor(self):
         """Start the mood monitor"""
@@ -3236,25 +3315,34 @@ class NotificationGUI:
     def play_calm_audio(self, reason=None, duration_minutes=None):
         """Play calm music (called by AI assistant)"""
         print(f"AI Assistant: Playing calm music - {reason}")
-        try:
-            import subprocess
-            import os
-            current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            music_path = os.path.join(current_dir, 'assets', 'calm_music.mp3')
-            if os.path.exists(music_path):
-                try:
-                    import pygame
-                    pygame.mixer.init()
-                    pygame.mixer.music.load(music_path)
-                    pygame.mixer.music.play(-1)  # Loop
-                    print(f"Playing calm music...")
-                except ImportError:
-                    subprocess.Popen(['afplay', music_path])
-                    print(f"Playing calm music (afplay)...")
-            else:
-                print(f"Music file not found: {music_path}")
-        except Exception as e:
-            print(f"Could not play music: {e}")
+        if duration_minutes is None:
+            duration_minutes = 15
+        
+        # Use AI assistant's music player for better state management
+        if hasattr(self, 'ai_assistant') and self.ai_assistant:
+            self.ai_assistant.play_calm_music(reason=reason or "stress relief", duration_minutes=duration_minutes)
+        else:
+            # Fallback to direct playback
+            try:
+                import subprocess
+                import os
+                current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                music_path = os.path.join(current_dir, 'assets', 'calm_music.mp3')
+                if os.path.exists(music_path):
+                    try:
+                        import pygame
+                        if not pygame.mixer.get_init():
+                            pygame.mixer.init()
+                        pygame.mixer.music.load(music_path)
+                        pygame.mixer.music.play()
+                        print(f"Playing calm music...")
+                    except ImportError:
+                        subprocess.Popen(['afplay', music_path])
+                        print(f"Playing calm music (afplay)...")
+                else:
+                    print(f"Music file not found: {music_path}")
+            except Exception as e:
+                print(f"Could not play music: {e}")
     
     def enable_dnd_mode(self, reason=None, duration_minutes=None):
         """Enable Do Not Disturb mode (called by AI assistant)"""
